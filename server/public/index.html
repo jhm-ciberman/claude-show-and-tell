@@ -1,0 +1,2158 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Show and Tell</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23d97757'/%3E%3Crect x='6.5' y='8.5' width='19' height='15' rx='2.5' fill='none' stroke='white' stroke-width='2.2'/%3E%3Ccircle cx='12' cy='13.5' r='1.9' fill='white'/%3E%3Cpath d='M7.5 22.5l5.5-5 3.5 3 3-2.5 5 4.5' fill='none' stroke='white' stroke-width='2.2' stroke-linejoin='round'/%3E%3C/svg%3E">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com/3.4.16"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'media',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Nunito', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+                    },
+                    colors: {
+                        clay: {
+                            50: '#fdf4f0',
+                            100: '#fae5dc',
+                            400: '#e3906f',
+                            500: '#d97757',
+                            600: '#c45f3f',
+                        },
+                    },
+                },
+            },
+        };
+    </script>
+    <script src="https://unpkg.com/lucide@0.460.0/dist/umd/lucide.min.js"></script>
+    <style>
+        /* No picture on the board is taller than the screen under the bars, so each one is seen whole. */
+        :root { --screen-fit: calc(100vh - 11rem); }
+
+        /* A collage piece starts as 16:9 and takes its image's shape once the image loads. */
+        .collage-item { flex: 1.78 1 0; min-width: 0; aspect-ratio: 16 / 9; max-height: var(--screen-fit); }
+    </style>
+</head>
+<body class="h-screen overflow-hidden bg-slate-100 font-sans text-slate-800 antialiased dark:bg-slate-950 dark:text-slate-200">
+    <div class="flex h-full flex-col">
+        <div class="flex shrink-0 items-end gap-3 border-b border-slate-300 bg-slate-200 px-3 pt-2 dark:border-slate-800 dark:bg-slate-900">
+            <div class="flex shrink-0 items-center gap-2 self-center pb-2 pr-2">
+                <div class="flex h-7 w-7 items-center justify-center rounded-lg bg-clay-500 text-white shadow-sm shadow-clay-500/30">
+                    <i data-lucide="images" class="h-4 w-4"></i>
+                </div>
+                <div class="hidden text-sm font-black tracking-tight sm:block">Show and Tell</div>
+            </div>
+            <nav id="sessions" class="-mb-px flex min-w-0 flex-1 items-end gap-0.5 overflow-x-auto overflow-y-hidden"></nav>
+            <div id="rail-toggle" class="shrink-0 self-center pb-2"></div>
+            <div id="connection" class="flex shrink-0 items-center gap-2 self-center pb-2 text-xs font-bold text-slate-500"></div>
+        </div>
+
+        <div class="flex min-h-0 flex-1">
+            <main id="main" class="min-w-0 flex-1 overflow-y-auto"></main>
+
+            <aside id="seen" class="hidden w-[30rem] shrink-0 flex-col border-l border-slate-200 bg-white xl:flex dark:border-slate-800 dark:bg-slate-900"></aside>
+        </div>
+    </div>
+
+    <div id="lightbox" class="fixed inset-0 z-50 hidden flex-col bg-slate-950/90 backdrop-blur-sm md:flex-row">
+        <aside class="flex w-full shrink-0 flex-col gap-5 border-b border-white/10 bg-slate-900/95 p-5 text-white md:order-last md:w-80 md:border-b-0 md:border-l">
+            <div class="flex items-start gap-3">
+                <div class="min-w-0 flex-1">
+                    <h2 id="lightbox-title" class="text-lg font-black leading-snug tracking-tight"></h2>
+                    <div id="lightbox-meta" class="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs font-bold text-white/50"></div>
+                </div>
+                <button type="button" data-close title="Close (Esc)" class="shrink-0 rounded-full bg-white/10 p-2 transition hover:bg-white/20">
+                    <i data-lucide="x" class="h-4 w-4"></i>
+                </button>
+            </div>
+            <button type="button" id="lightbox-pick" class="hidden w-full items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-extrabold transition"></button>
+            <div id="lightbox-note" class="hidden rounded-xl bg-white/5 p-3 ring-1 ring-white/10">
+                <div class="mb-1 flex items-center gap-1.5 text-[11px] font-extrabold uppercase tracking-wider text-clay-400">
+                    <i data-lucide="sparkles" class="h-3.5 w-3.5"></i> Claude's note
+                </div>
+                <p id="lightbox-note-text" class="whitespace-pre-line text-sm font-semibold text-white/85"></p>
+            </div>
+            <div class="flex-1"></div>
+            <div class="flex gap-2">
+                <button type="button" id="area-toggle" data-area-toggle class="inline-flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-white/10 px-4 py-2.5 text-sm font-extrabold transition hover:bg-white/20">
+                    <i data-lucide="square-dashed-mouse-pointer" class="h-4 w-4"></i> <span>Ask about an area</span>
+                </button>
+                <button type="button" id="area-clear" data-area-clear title="Clear the marked area" class="hidden rounded-xl bg-white/10 px-3 transition hover:bg-white/20">
+                    <i data-lucide="x" class="h-4 w-4"></i>
+                </button>
+            </div>
+            <form id="comment-form" class="space-y-2">
+                <label for="comment-input" class="text-[11px] font-extrabold uppercase tracking-wider text-white/50">Tell Claude about this image</label>
+                <textarea id="comment-input" data-send-on-enter placeholder="Write a note about this image…" class="block max-h-[200px] min-h-[5.5rem] w-full resize-none rounded-xl border-0 bg-white/10 px-4 py-2.5 text-sm font-semibold text-white placeholder-white/40 outline-none ring-1 ring-white/15 [field-sizing:content] focus:ring-2 focus:ring-clay-400"></textarea>
+                <button type="submit" class="inline-flex w-full items-center justify-center gap-1.5 rounded-xl bg-clay-500 px-4 py-2.5 text-sm font-extrabold transition hover:bg-clay-600">
+                    <i data-lucide="send" class="h-4 w-4"></i> Send
+                </button>
+            </form>
+            <a id="lightbox-download" download class="inline-flex w-full items-center justify-center gap-1.5 rounded-xl bg-white/10 px-4 py-2.5 text-sm font-extrabold transition hover:bg-white/20">
+                <i data-lucide="download" class="h-4 w-4"></i> Save image
+            </a>
+        </aside>
+        <div data-close class="relative flex min-h-0 min-w-0 flex-1 flex-col items-center justify-center gap-4 p-6">
+            <div id="lightbox-stage" class="relative min-h-0 w-full flex-1 cursor-zoom-in overflow-hidden">
+                <img id="lightbox-image" draggable="false" class="h-full w-full origin-top-left select-none object-contain drop-shadow-2xl" alt="">
+                <span id="lightbox-zoom" class="pointer-events-none absolute bottom-3 left-3 hidden rounded-full bg-black/60 px-3 py-1 text-xs font-black text-white"></span>
+                <div id="area-box" class="pointer-events-none absolute hidden rounded-sm border-2 border-clay-400 bg-clay-400/15 shadow-[0_0_0_9999px_rgba(0,0,0,0.35)]"></div>
+            </div>
+            <div id="lightbox-strip" class="hidden max-w-full shrink-0 gap-2 overflow-x-auto rounded-xl bg-black/40 p-2"></div>
+            <button type="button" data-step="-1" class="absolute left-4 top-1/2 -translate-y-1/2 rounded-full bg-black/60 p-3 text-white shadow-lg ring-1 ring-white/20 backdrop-blur transition hover:bg-black/80">
+                <i data-lucide="chevron-left" class="h-6 w-6"></i>
+            </button>
+            <button type="button" data-step="1" class="absolute right-4 top-1/2 -translate-y-1/2 rounded-full bg-black/60 p-3 text-white shadow-lg ring-1 ring-white/20 backdrop-blur transition hover:bg-black/80">
+                <i data-lucide="chevron-right" class="h-6 w-6"></i>
+            </button>
+        </div>
+    </div>
+
+    <div id="question-view" class="fixed inset-0 z-40 hidden flex-col bg-slate-950 text-white"></div>
+
+    <div id="toasts"class="pointer-events-none fixed bottom-5 left-1/2 z-[60] flex -translate-x-1/2 flex-col items-center gap-2"></div>
+
+    <script>
+        const ROW = 8;
+        const GAP = 12;
+        const CHUNK_GAP_MS = 30 * 60 * 1000;
+        const LIVE_FOR_MS = 60 * 60 * 1000;
+        const LETTERS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+
+        const BADGES = {
+            question: { icon: 'circle-help', classes: 'bg-amber-400 text-amber-950' },
+        };
+
+        const STATUSES = {
+            working: { label: 'Working', dot: 'bg-emerald-500', pill: 'bg-emerald-50 text-emerald-700 ring-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-400 dark:ring-emerald-500/30', isPulsing: true },
+            idle: { label: 'Waiting for you', dot: 'bg-amber-500', pill: 'bg-amber-50 text-amber-700 ring-amber-200 dark:bg-amber-500/10 dark:text-amber-400 dark:ring-amber-500/30', isPulsing: false },
+            ended: { label: 'Ended', dot: 'bg-slate-300 dark:bg-slate-600', pill: 'bg-slate-100 text-slate-500 ring-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:ring-slate-700', isPulsing: false },
+        };
+
+        const state = {
+            sessions: new Map(),
+            current: null,
+            events: [],
+            isConnected: false,
+            isLoaded: false,
+            // The agent whose seen images the right column details; undefined lists the agents.
+            seenAgent: undefined,
+            // The question shown full screen, by event id.
+            questionView: null,
+            showReviewed: false,
+            lightbox: { items: [], index: 0 },
+            drafts: new Map(),
+            // Subagents that finished stay folded away in the right column until asked for.
+            showFinished: false,
+            isRailCollapsed: storageGet('railCollapsed') === 'true',
+            // How many seen images there were when the column was collapsed, to badge the ones since.
+            seenWhenCollapsed: 0,
+            // The session tabs in the order the person dragged them to, by id.
+            sessionOrder: storageGetJson('sessionOrder') ?? [],
+            // The session tab being dragged, by id; the tabs hold still until it is dropped.
+            draggedSession: null,
+        };
+
+        function storageGet(key) {
+            try {
+                return localStorage.getItem(key);
+            } catch {
+                return null;
+            }
+        }
+
+        function storageGetJson(key) {
+            try {
+                return JSON.parse(storageGet(key));
+            } catch {
+                return null;
+            }
+        }
+
+        function storageSet(key, value) {
+            try {
+                localStorage.setItem(key, value);
+            } catch {
+                // Without storage the setting lasts until the page is closed.
+            }
+        }
+
+        function setRailCollapsed(isCollapsed) {
+            state.isRailCollapsed = isCollapsed;
+            state.seenWhenCollapsed = lists().seen.length;
+            storageSet('railCollapsed', String(isCollapsed));
+            render();
+        }
+
+        function escapeHtml(text) {
+            return String(text ?? '').replace(/[&<>"']/g, char => `&#${char.charCodeAt(0)};`);
+        }
+
+        function icon(name, classes = 'h-4 w-4') {
+            return `<i data-lucide="${name}" class="${classes}"></i>`;
+        }
+
+        function images(count) {
+            return `${count} ${count === 1 ? 'image' : 'images'}`;
+        }
+
+        function timeAgo(at) {
+            const seconds = Math.max(0, Math.round((Date.now() - at) / 1000));
+
+            if (seconds < 60) return 'just now';
+            if (seconds < 3600) return `${Math.round(seconds / 60)} min ago`;
+            if (seconds < 86400) return `${Math.round(seconds / 3600)} h ago`;
+
+            return `${Math.round(seconds / 86400)} d ago`;
+        }
+
+        function clock(at) {
+            return new Date(at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        }
+
+        function currentId() {
+            const match = location.pathname.match(/^\/s\/([^/]+)/);
+
+            return match ? decodeURIComponent(match[1]) : null;
+        }
+
+        function isPending(event) {
+            return event.kind === 'question' && !event.isSeen;
+        }
+
+        /**
+         * Whether a report is in review: shown, not a question, and not marked reviewed.
+         */
+        function isInReview(event) {
+            return event.kind !== 'seen' && event.images.length > 0 && !isPending(event) && event.isReviewed !== true;
+        }
+
+        /**
+         * Whether the person has not even glanced at a report yet: it counts as seen once it stays in view.
+         */
+        function isUnseen(event) {
+            return event.kind !== 'seen' && event.images.length > 0 && event.isViewed !== true && event.isReviewed !== true;
+        }
+
+        /**
+         * The dot a report wears until the person has seen it, as in a chat app.
+         */
+        function unseenDot(event) {
+            return isUnseen(event)
+                ? '<span title="New" class="h-2.5 w-2.5 shrink-0 rounded-full bg-clay-500 ring-2 ring-white dark:ring-slate-900"></span>'
+                : '';
+        }
+
+        /**
+         * Marks a report reviewed, which moves it to the Reviewed tab, or moves a reviewed one back in review. Over
+         * a picture it stands out light; on a card's header it sits on the card's own colors.
+         */
+        function reviewButton(event, isOverPicture) {
+            const isReviewed = event.isReviewed === true;
+            const looks = isReviewed
+                ? (isOverPicture
+                    ? 'bg-black/55 text-white backdrop-blur hover:bg-black/75'
+                    : 'bg-slate-100 text-slate-600 ring-1 ring-slate-200 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:ring-slate-700')
+                : (isOverPicture
+                    ? 'bg-white/90 text-slate-800 shadow hover:bg-emerald-500 hover:text-white'
+                    : 'bg-slate-100 text-slate-700 ring-1 ring-slate-200 hover:bg-emerald-500 hover:text-white hover:ring-emerald-500 dark:bg-slate-800 dark:text-slate-200 dark:ring-slate-700');
+
+            return `
+                <button type="button" data-mark-reviewed="${escapeHtml(event.id)}" title="${isReviewed ? 'Move back in review' : 'Mark as reviewed'}" class="inline-flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-extrabold transition ${looks}">
+                    ${icon(isReviewed ? 'undo-2' : 'check', 'h-4 w-4')} ${isReviewed ? 'In review' : 'Reviewed'}
+                </button>
+            `;
+        }
+
+        function isOpen(session) {
+            return session.status !== 'ended';
+        }
+
+        /**
+         * The answer being written to a question: the options picked, whether "Other" is one of them, and the text,
+         * which is the other answer when "Other" is picked and notes otherwise.
+         */
+        function draftFor(eventId) {
+            if (!state.drafts.has(eventId)) {
+                state.drafts.set(eventId, { choices: [], isOther: false, text: '' });
+            }
+
+            return state.drafts.get(eventId);
+        }
+
+        function canSendAnswer(draft) {
+            return isOpen(state.current) && (draft.choices.length > 0 || (draft.isOther && draft.text.trim() !== ''));
+        }
+
+        function pickMark(isChosen, isMultiSelect) {
+            const shape = isMultiSelect ? 'rounded-md' : 'rounded-full';
+
+            return isChosen
+                ? `<span class="flex h-5 w-5 shrink-0 items-center justify-center ${shape} bg-clay-500 text-white">${icon('check', 'h-3.5 w-3.5')}</span>`
+                : `<span class="h-5 w-5 shrink-0 ${shape} border-2 border-slate-300 dark:border-slate-600"></span>`;
+        }
+
+        function toast(text, iconName = 'check') {
+            const element = document.createElement('div');
+            element.className = 'flex items-center gap-2 rounded-full bg-slate-900 px-4 py-2 text-sm font-bold text-white shadow-xl ring-1 ring-white/10 transition duration-300 dark:bg-white dark:text-slate-900';
+            element.innerHTML = `${icon(iconName, 'h-4 w-4')} ${escapeHtml(text)}`;
+            document.getElementById('toasts').append(element);
+            window.lucide?.createIcons();
+            setTimeout(() => element.classList.add('opacity-0'), 2600);
+            setTimeout(() => element.remove(), 3000);
+        }
+
+        async function post(path, body = {}) {
+            const response = await fetch(`/api/sessions/${encodeURIComponent(state.current.id)}${path}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body),
+            });
+
+            return response.ok;
+        }
+
+        function statusDot(status) {
+            const style = STATUSES[status] ?? STATUSES.ended;
+            const ping = style.isPulsing
+                ? `<span class="absolute inline-flex h-full w-full animate-ping rounded-full ${style.dot} opacity-60"></span>`
+                : '';
+
+            return `<span class="relative flex h-2.5 w-2.5 shrink-0">${ping}<span class="relative inline-flex h-2.5 w-2.5 rounded-full ${style.dot}"></span></span>`;
+        }
+
+        /**
+         * One entry per image, newest first, in the order the lightbox walks them.
+         */
+        function flatten(events) {
+            return events.slice().reverse().flatMap(event =>
+                event.images.map((image, index) => ({ event, image, index })),
+            );
+        }
+
+        /**
+         * Splits the images into runs with no long pause inside, so a pause shows as a divider.
+         */
+        function chunk(items) {
+            const chunks = [];
+
+            for (const item of items) {
+                const last = chunks.at(-1);
+
+                if (last && last.at.at(-1) - item.event.at < CHUNK_GAP_MS) {
+                    last.items.push(item);
+                    last.at.push(item.event.at);
+                } else {
+                    chunks.push({ items: [item], at: [item.event.at] });
+                }
+            }
+
+            return chunks;
+        }
+
+        /**
+         * Whether a session still runs: it has not ended and did something in the last hour. A session whose
+         * process died without ending looks the same as one that stopped long ago.
+         */
+        function isLive(session) {
+            return session.status !== 'ended' && Date.now() - session.updatedAt < LIVE_FOR_MS;
+        }
+
+        /**
+         * The sessions in the order of the tabs: the order the person dragged them to, with new sessions last.
+         */
+        function orderedSessions() {
+            const rank = id => {
+                const index = state.sessionOrder.indexOf(id);
+
+                return index === -1 ? Infinity : index;
+            };
+
+            return [...state.sessions.values()].sort((a, b) => rank(a.id) - rank(b.id) || a.createdAt - b.createdAt);
+        }
+
+        /**
+         * Moves a session tab before or after another one and remembers the new order.
+         */
+        function moveSession(id, targetId, isAfter) {
+            const order = orderedSessions().map(session => session.id).filter(one => one !== id);
+            order.splice(order.indexOf(targetId) + (isAfter ? 1 : 0), 0, id);
+            state.sessionOrder = order;
+            storageSet('sessionOrder', JSON.stringify(order));
+        }
+
+        function renderSessions() {
+            // Redrawing the tabs mid-drag would drop the tab being dragged.
+            if (state.draggedSession) {
+                return;
+            }
+
+            const list = orderedSessions();
+            const live = list.filter(isLive);
+            const asleep = list.filter(session => !isLive(session));
+            const nav = document.getElementById('sessions');
+
+            nav.innerHTML = list.length === 0
+                ? '<p class="px-2 pb-2.5 text-sm text-slate-500">No session has shown anything yet.</p>'
+                : [
+                    live.map(renderSessionTab).join(''),
+                    asleep.length && live.length ? '<span class="mx-1 mb-2.5 h-5 w-px shrink-0 bg-slate-300 dark:bg-slate-700"></span>' : '',
+                    asleep.map(renderSessionTab).join(''),
+                ].join('');
+
+            updateTitle();
+            window.lucide?.createIcons();
+        }
+
+        /**
+         * One session as a tab of the top bar; the inactive ones come last, faded.
+         */
+        function renderSessionTab(session) {
+            const isCurrent = session.id === state.current?.id;
+            // The open tab takes the page's own color and covers the bar's bottom line, so it joins the page below.
+            const classes = isCurrent
+                ? 'border-slate-300 border-t-clay-500 bg-slate-100 text-slate-900 dark:border-slate-800 dark:border-t-clay-500 dark:bg-slate-950 dark:text-white'
+                : `border-transparent text-slate-500 hover:bg-slate-300/60 hover:text-slate-800 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-200 ${isLive(session) ? '' : 'opacity-50 hover:opacity-100'}`;
+            const fresh = session.unseenCount
+                ? `<span title="New reports" class="rounded-full bg-clay-500 px-2 py-0.5 text-[11px] font-black text-white">${session.unseenCount}</span>`
+                : '';
+            const pending = session.pendingCount
+                ? `<span title="Questions" class="rounded-full bg-amber-400 px-2 py-0.5 text-[11px] font-black text-amber-950">?${session.pendingCount}</span>`
+                : '';
+            const badge = fresh || pending ? `<span class="flex shrink-0 gap-1">${pending}${fresh}</span>` : '';
+            const kept = session.isKept ? `<span title="Protected: auto cleanup is off" class="shrink-0 text-emerald-500">${icon('shield-check', 'h-3.5 w-3.5')}</span>` : '';
+
+            return `
+                <a href="/s/${encodeURIComponent(session.id)}" data-id="${escapeHtml(session.id)}" draggable="true" title="${escapeHtml(session.title)} · ${images(session.imageCount)} · ${timeAgo(session.updatedAt)}" class="session flex h-10 max-w-[18rem] shrink-0 items-center gap-2 rounded-t-xl border border-b-0 border-t-2 px-4 text-sm font-extrabold transition ${classes}">
+                    ${statusDot(isLive(session) ? session.status : 'ended')}
+                    <span class="truncate">${escapeHtml(session.title)}</span>
+                    ${kept}
+                    ${badge}
+                </a>
+            `;
+        }
+
+        function renderConnection() {
+            document.getElementById('connection').innerHTML = state.isConnected
+                ? '<span class="h-2 w-2 rounded-full bg-emerald-500"></span> Live'
+                : '<span class="h-2 w-2 rounded-full bg-slate-300"></span> Reconnecting…';
+        }
+
+        function optionRing(isChosen) {
+            return isChosen
+                ? 'ring-[3px] ring-clay-500 shadow-lg shadow-clay-500/20'
+                : 'ring-1 ring-amber-200 hover:ring-amber-400 dark:ring-amber-500/30';
+        }
+
+        /**
+         * One option: the picture opens the viewer, the row under it picks the option.
+         */
+        function renderOption(event, image, index, position, draft) {
+            const isChosen = draft.choices.includes(index);
+
+            return `
+                <div class="overflow-hidden rounded-2xl bg-white shadow-sm transition dark:bg-slate-900 ${optionRing(isChosen)}">
+                    <button type="button" data-review="${escapeHtml(event.id)}" title="Compare all the options" class="group relative block w-full cursor-zoom-in bg-slate-900">
+                        <img src="${escapeHtml(image.url)}" alt="" loading="lazy" class="aspect-video w-full object-contain">
+                        <span class="absolute right-3 top-3 rounded-full bg-black/55 p-1.5 text-white opacity-0 backdrop-blur transition group-hover:opacity-100">${icon('maximize-2', 'h-4 w-4')}</span>
+                    </button>
+                    <button type="button" data-choose="${escapeHtml(event.id)}" data-index="${index}" class="flex w-full items-center gap-3 px-4 py-3 text-left transition hover:bg-amber-50 dark:hover:bg-amber-500/10">
+                        ${pickMark(isChosen, event.isMultiSelect)}
+                        <span class="text-xs font-black text-slate-400">${LETTERS[index] ?? '?'}</span>
+                        <span class="truncate text-sm font-extrabold">${escapeHtml(image.label ?? image.name)}</span>
+                    </button>
+                </div>
+            `;
+        }
+
+        /**
+         * The "Other" pick, beside the answer field it turns into the answer itself.
+         */
+        function renderOtherToggle(event, draft, classes) {
+            const look = draft.isOther ? 'bg-clay-500 text-white ring-clay-500' : classes;
+
+            return `
+                <button type="button" data-choose="${escapeHtml(event.id)}" data-index="-1" class="inline-flex shrink-0 items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-extrabold ring-1 transition ${look}">
+                    ${pickMark(draft.isOther, event.isMultiSelect)} Other…
+                </button>
+            `;
+        }
+
+        function renderQuestion(event, items) {
+            const draft = draftFor(event.id);
+            const canAnswer = isOpen(state.current);
+            const options = event.images.map((image, index) =>
+                renderOption(event, image, index, items.findIndex(item => item.image === image), draft),
+            ).join('');
+            const placeholder = draft.isOther ? 'Your answer…' : 'Notes for Claude (optional)';
+
+            return `
+                <section class="rounded-3xl bg-amber-50 p-5 ring-1 ring-amber-200 dark:bg-amber-500/10 dark:ring-amber-500/30">
+                    <div class="mb-4 flex items-start gap-3">
+                        <div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-amber-400 text-amber-950">${icon('circle-help', 'h-5 w-5')}</div>
+                        <div class="min-w-0 flex-1">
+                            <h2 class="text-xl font-black tracking-tight">${escapeHtml(event.title)}</h2>
+                            <p class="text-sm font-semibold text-slate-500 dark:text-slate-400">${escapeHtml(event.text || (event.isMultiSelect ? 'Pick one or more.' : 'Pick one.'))}</p>
+                        </div>
+                        <button type="button" data-review="${escapeHtml(event.id)}" class="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-clay-500 px-3 py-1.5 text-xs font-extrabold text-white shadow-sm transition hover:bg-clay-600">${icon('maximize-2', 'h-3.5 w-3.5')} Compare full screen</button>
+                        <button type="button" data-seen="${escapeHtml(event.id)}" class="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-white px-3 py-1.5 text-xs font-extrabold text-slate-600 shadow-sm ring-1 ring-slate-200 transition hover:text-slate-900 dark:bg-slate-800 dark:text-slate-300 dark:ring-slate-700">${icon('x', 'h-3.5 w-3.5')} Dismiss</button>
+                    </div>
+                    <div class="grid gap-5 [grid-template-columns:repeat(auto-fill,minmax(340px,1fr))]">${options}</div>
+                    <div class="mt-5 flex items-end gap-3">
+                        ${renderOtherToggle(event, draft, 'bg-white text-slate-600 ring-amber-200 hover:ring-amber-400 dark:bg-slate-900 dark:text-slate-300 dark:ring-amber-500/30')}
+                        <textarea id="answer-${escapeHtml(event.id)}" data-send-on-enter data-draft="${escapeHtml(event.id)}" placeholder="${placeholder}" class="max-h-[200px] min-w-0 flex-1 resize-none rounded-xl border-0 bg-white px-4 py-2.5 text-sm font-semibold shadow-sm outline-none ring-1 ring-amber-200 placeholder-slate-400 [field-sizing:content] focus:ring-2 focus:ring-clay-400 dark:bg-slate-900 dark:ring-amber-500/30">${escapeHtml(draft.text)}</textarea>
+                        <button type="button" data-answer="${escapeHtml(event.id)}" ${canSendAnswer(draft) ? '' : 'disabled'} class="inline-flex shrink-0 items-center gap-2 rounded-xl bg-clay-500 px-5 py-2.5 text-sm font-extrabold text-white shadow-sm shadow-clay-500/30 transition hover:bg-clay-600 disabled:cursor-not-allowed disabled:opacity-40">
+                            ${icon('send', 'h-4 w-4')} Send answer
+                        </button>
+                    </div>
+                    ${canAnswer ? '' : '<p class="mt-2 text-right text-xs font-bold text-slate-400">The session has ended.</p>'}
+                </section>
+            `;
+        }
+
+        /**
+         * A question full screen: every option as large as the screen allows, side by side, picked with a click,
+         * and the answer sent from the same place.
+         */
+        function renderQuestionView() {
+            const view = document.getElementById('question-view');
+            const event = state.events.find(one => one.id === state.questionView && isPending(one));
+
+            if (!event) {
+                view.classList.replace('flex', 'hidden');
+                view.innerHTML = '';
+
+                return;
+            }
+
+            const draft = draftFor(event.id);
+            const items = lists().questions;
+            const count = event.images.length;
+            const columns = count <= 2 ? count : count <= 4 ? 2 : count <= 6 ? 3 : 4;
+            const options = event.images.map((image, index) => {
+                const isChosen = draft.choices.includes(index);
+                const position = items.findIndex(item => item.image === image);
+
+                return `
+                    <div class="group relative flex min-h-0 flex-col overflow-hidden rounded-2xl bg-slate-900 transition ${isChosen ? 'ring-4 ring-clay-500' : 'ring-1 ring-white/10 hover:ring-white/30'}">
+                        <button type="button" data-choose="${escapeHtml(event.id)}" data-index="${index}" class="min-h-0 flex-1">
+                            <img src="${escapeHtml(image.url)}" alt="" class="h-full w-full object-contain">
+                        </button>
+                        <button type="button" data-open="${position}" data-list="questions" title="View alone" class="absolute right-3 top-3 rounded-full bg-black/60 p-2 opacity-0 backdrop-blur transition group-hover:opacity-100">${icon('zoom-in', 'h-4 w-4')}</button>
+                        <button type="button" data-choose="${escapeHtml(event.id)}" data-index="${index}" class="flex shrink-0 items-center gap-3 px-4 py-3 text-left">
+                            ${pickMark(isChosen, event.isMultiSelect)}
+                            <span class="text-xs font-black text-white/50">${LETTERS[index] ?? '?'}</span>
+                            <span class="truncate text-sm font-extrabold">${escapeHtml(image.label ?? image.name)}</span>
+                        </button>
+                    </div>
+                `;
+            }).join('');
+            view.innerHTML = `
+                <header class="flex shrink-0 items-center gap-3 border-b border-white/10 px-6 py-4">
+                    <div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-amber-400 text-amber-950">${icon('circle-help', 'h-5 w-5')}</div>
+                    <div class="min-w-0 flex-1">
+                        <h2 class="truncate text-xl font-black tracking-tight">${escapeHtml(event.title)}</h2>
+                        <p class="truncate text-sm font-semibold text-white/60">${escapeHtml(event.text || (event.isMultiSelect ? 'Pick one or more.' : 'Pick one.'))} Click an option to pick it.</p>
+                    </div>
+                    <button type="button" data-review-close title="Close (Esc)" class="rounded-full bg-white/10 p-2 transition hover:bg-white/20">${icon('x', 'h-5 w-5')}</button>
+                </header>
+                <div class="grid min-h-0 flex-1 gap-4 p-6" style="grid-template-columns:repeat(${columns},minmax(0,1fr));grid-auto-rows:minmax(0,1fr)">${options}</div>
+                <footer class="flex shrink-0 items-end gap-3 border-t border-white/10 px-6 py-4">
+                    ${renderOtherToggle(event, draft, 'bg-white/10 text-white ring-white/15 hover:bg-white/20')}
+                    <textarea id="review-answer-${escapeHtml(event.id)}" data-send-on-enter data-draft="${escapeHtml(event.id)}" placeholder="${draft.isOther ? 'Your answer…' : 'Notes for Claude (optional)'}" class="max-h-[160px] min-w-0 flex-1 resize-none rounded-xl border-0 bg-white/10 px-4 py-2.5 text-sm font-semibold text-white placeholder-white/40 outline-none ring-1 ring-white/15 [field-sizing:content] focus:ring-2 focus:ring-clay-400">${escapeHtml(draft.text)}</textarea>
+                    <button type="button" data-answer="${escapeHtml(event.id)}" ${canSendAnswer(draft) ? '' : 'disabled'} class="inline-flex shrink-0 items-center gap-2 rounded-xl bg-clay-500 px-6 py-3 text-sm font-extrabold shadow-lg shadow-clay-500/30 transition hover:bg-clay-600 disabled:cursor-not-allowed disabled:opacity-40">${icon('send', 'h-4 w-4')} Send answer</button>
+                </footer>
+            `;
+            view.classList.replace('hidden', 'flex');
+        }
+
+        function answerText(event) {
+            const picked = event.answer.choices.map(index => LETTERS[index]);
+
+            return [...picked, event.answer.other ? 'other' : null].filter(Boolean).join(', ');
+        }
+
+        function badgeFor(event, index) {
+            const badge = event.answer?.choices.includes(index) ? { icon: 'check', classes: 'bg-clay-500 text-white' } : BADGES[event.kind];
+
+            return badge
+                ? `<span class="absolute left-2.5 top-2.5 flex h-7 w-7 items-center justify-center rounded-full shadow ${badge.classes}">${icon(badge.icon, 'h-4 w-4')}</span>`
+                : '';
+        }
+
+        function agentChip(event, classes = 'absolute right-2.5 top-2.5') {
+            return event.agent
+                ? `<span class="${classes} inline-flex items-center gap-1 rounded-full bg-black/55 px-2 py-0.5 text-[11px] font-bold text-white backdrop-blur">${icon('bot', 'h-3 w-3')} ${escapeHtml(event.agent)}</span>`
+                : '';
+        }
+
+        function cardTitle(event) {
+            return event.kind === 'question' && event.answer ? `${event.title} · picked ${answerText(event)}` : event.title;
+        }
+
+
+        /**
+         * One report on the board: what a single call showed, kept together as one card.
+         */
+        function renderCard(entries) {
+            const { event } = entries[0];
+            const watch = isUnseen(event) ? `data-unseen="${escapeHtml(event.id)}"` : '';
+
+            if (entries.length === 1) {
+                const [{ image, index }] = entries;
+                const caption = [cardTitle(event), image.label].filter(Boolean).join(' · ');
+
+                return `
+                    <article class="card self-start" data-span="auto" ${watch}>
+                        <div role="button" tabindex="0" data-report="${escapeHtml(event.id)}" data-index="${index}" class="group relative block w-full cursor-pointer overflow-hidden rounded-xl bg-slate-200 text-left shadow-sm ring-1 ring-black/5 transition hover:shadow-xl hover:ring-clay-400 dark:bg-slate-800 dark:ring-white/5">
+                            <img src="${escapeHtml(image.url)}" alt="" class="block h-auto max-h-[var(--screen-fit)] w-full object-contain transition duration-500 group-hover:scale-[1.03]">
+                            ${badgeFor(event, index)}
+                            ${agentChip(event)}
+                            <div class="absolute inset-x-0 bottom-0 flex items-end gap-2 bg-gradient-to-t from-black/75 via-black/30 to-transparent px-3 pb-2 pt-8">
+                                <div class="min-w-0 flex-1 pb-0.5 drop-shadow">
+                                    <div class="flex items-center gap-2 truncate text-sm font-extrabold text-white">${unseenDot(event)}<span class="truncate">${escapeHtml(caption)}</span></div>
+                                    ${event.text ? `<div class="truncate text-xs font-semibold text-white/80">${escapeHtml(event.text)}</div>` : ''}
+                                </div>
+                                ${reviewButton(event, true)}
+                            </div>
+                        </div>
+                    </article>
+                `;
+            }
+
+            const layout = LAYOUTS[event.kind === 'question' ? 'grid' : event.layout] ?? LAYOUTS.grid;
+            const isUsable = layout.fits?.(entries.length) ?? true;
+            const { body, span } = isUsable ? layout : LAYOUTS.grid;
+            const badge = BADGES[event.kind];
+
+            return `
+                <article data-report="${escapeHtml(event.id)}" data-index="0" ${watch} class="card self-start cursor-pointer rounded-2xl bg-white p-3 shadow-sm ring-1 ring-slate-200/80 transition hover:ring-clay-300 dark:bg-slate-900 dark:ring-slate-800" data-span="${span(entries.length)}">
+                    <header class="mb-2.5 flex items-center gap-2 px-1">
+                        ${badge ? `<span class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full ${badge.classes}">${icon(badge.icon, 'h-3.5 w-3.5')}</span>` : ''}
+                        ${unseenDot(event)}
+                        <h3 class="min-w-0 truncate text-base font-black tracking-tight">${escapeHtml(cardTitle(event))}</h3>
+                        <span class="shrink-0 text-xs font-bold text-slate-400">${images(entries.length)}</span>
+                        <span class="ml-auto flex shrink-0 items-center gap-2">
+                            ${agentChip(event, 'shrink-0')}
+                            ${reviewButton(event, false)}
+                        </span>
+                    </header>
+                    ${event.text ? `<p class="-mt-1 mb-2.5 truncate px-1 text-sm font-semibold text-slate-500 dark:text-slate-400">${escapeHtml(event.text)}</p>` : ''}
+                    ${body(event, entries)}
+                </article>
+            `;
+        }
+
+        function pictureButton(event, { image, index }, classes, extra = '') {
+            const isChosen = event.answer?.choices.includes(index);
+
+            return `
+                <button type="button" data-report="${escapeHtml(event.id)}" data-index="${index}" class="group relative overflow-hidden rounded-lg bg-slate-900 ring-1 ring-black/5 transition hover:ring-2 hover:ring-clay-400 ${isChosen ? 'ring-[3px] ring-clay-500' : ''} ${classes}">
+                    <img src="${escapeHtml(image.url)}" alt="" class="h-full w-full object-contain transition duration-500 group-hover:scale-[1.03]">
+                    ${isChosen ? badgeFor(event, index) : ''}
+                    ${extra}
+                </button>
+            `;
+        }
+
+        function labelStrip(image) {
+            return image.label
+                ? `<span class="absolute inset-x-0 bottom-0 truncate bg-gradient-to-t from-black/75 to-transparent px-2.5 pb-1.5 pt-5 text-left text-xs font-extrabold text-white">${escapeHtml(image.label)}</span>`
+                : '';
+        }
+
+        /**
+         * How a report of several images is laid out: its body, how many board columns it spans, and how many
+         * images it fits (a report that does not fit falls back to the grid).
+         */
+        const LAYOUTS = {
+            grid: {
+                span: count => (count >= 3 ? 'all' : count),
+                body: (event, entries) => `
+                    <div class="grid gap-2 [grid-template-columns:repeat(auto-fit,minmax(220px,1fr))]">
+                        ${entries.map(entry => pictureButton(event, entry, 'aspect-video max-h-[var(--screen-fit)]', labelStrip(entry.image))).join('')}
+                    </div>
+                `,
+            },
+            compare: {
+                fits: count => count >= 2 && count <= 4,
+                span: () => 'all',
+                body: (event, entries) => `
+                    <div class="grid gap-3" style="grid-template-columns:repeat(${entries.length},minmax(0,1fr))">
+                        ${entries.map(entry => `
+                            <figure class="min-w-0">
+                                ${pictureButton(event, entry, 'block aspect-video w-full')}
+                                <figcaption class="mt-2 truncate text-center text-sm font-extrabold">${escapeHtml(entry.image.label ?? LETTERS[entry.index])}</figcaption>
+                            </figure>
+                        `).join('')}
+                    </div>
+                `,
+            },
+            collage: {
+                span: () => 'all',
+                // justifyCollage deals the pieces into rows once the board knows its width.
+                body: (event, entries) => `
+                    <div data-collage class="flex flex-col gap-1">
+                        ${entries.map(entry => pictureButton(event, entry, 'collage-item rounded-md', labelStrip(entry.image))).join('')}
+                    </div>
+                `,
+            },
+            'before-after': {
+                fits: count => count === 2,
+                span: () => 'all',
+                body: (event, [before, after]) => `
+                    <div data-slider class="relative mx-auto aspect-video max-h-[var(--screen-fit)] cursor-ew-resize select-none overflow-hidden rounded-lg bg-slate-900" style="--split:50%">
+                        <img src="${escapeHtml(after.image.url)}" alt="" draggable="false" class="absolute inset-0 h-full w-full object-contain">
+                        <img src="${escapeHtml(before.image.url)}" alt="" draggable="false" class="absolute inset-0 h-full w-full object-contain" style="clip-path:inset(0 calc(100% - var(--split)) 0 0)">
+                        <span class="pointer-events-none absolute inset-y-0 w-0.5 bg-white shadow" style="left:var(--split)">
+                            <span class="absolute left-1/2 top-1/2 flex h-9 w-9 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-white text-clay-500 shadow-lg">${icon('chevrons-left-right', 'h-5 w-5')}</span>
+                        </span>
+                        <span class="pointer-events-none absolute left-3 top-3 rounded-full bg-black/60 px-3 py-1 text-xs font-black uppercase text-white">${escapeHtml(before.image.label ?? 'Before')}</span>
+                        <span class="pointer-events-none absolute right-3 top-3 rounded-full bg-black/60 px-3 py-1 text-xs font-black uppercase text-white">${escapeHtml(after.image.label ?? 'After')}</span>
+                        <button type="button" data-report="${escapeHtml(event.id)}" data-index="${before.index}" title="View larger" class="absolute bottom-3 right-3 rounded-full bg-black/60 p-2 text-white backdrop-blur transition hover:bg-black/80">${icon('maximize-2', 'h-4 w-4')}</button>
+                    </div>
+                `,
+            },
+            variations: {
+                span: () => 'all',
+                body: (event, entries) => `
+                    <div class="grid gap-2 [grid-template-columns:repeat(auto-fit,minmax(240px,1fr))]">
+                        ${entries.map((entry, number) => pictureButton(
+                            event,
+                            entry,
+                            'aspect-video max-h-[var(--screen-fit)]',
+                            `<span class="absolute left-2 top-2 flex h-6 min-w-6 items-center justify-center rounded-full bg-black/65 px-1.5 text-xs font-black text-white">${number + 1}</span>${labelStrip(entry.image)}`,
+                        )).join('')}
+                    </div>
+                `,
+            },
+        };
+
+        /**
+         * The board as one list, newest first: the reports in review, or, on the Reviewed tab, the ones marked reviewed.
+         */
+        function renderBoard(items) {
+            if (items.length === 0) {
+                return `
+                    <div class="flex flex-col items-center justify-center rounded-3xl border-2 border-dashed border-slate-200 py-20 text-center dark:border-slate-800">
+                        <div class="mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-white text-slate-400 shadow-sm dark:bg-slate-900">${icon(state.showReviewed ? 'circle-check' : 'image', 'h-6 w-6')}</div>
+                        <p class="text-sm font-bold text-slate-400">${state.showReviewed ? 'Nothing marked as reviewed.' : state.current?.reviewedCount ? 'All reviewed. Nothing left in review.' : 'No images shown yet.'}</p>
+                    </div>
+                `;
+            }
+
+            return renderTiles(items);
+        }
+
+        function inReviewImageCount() {
+            return state.events.filter(isInReview).reduce((total, event) => total + event.images.length, 0);
+        }
+
+        /**
+         * Splits a run of images back into the reports they came in, in order.
+         */
+        function byReport(entries) {
+            const reports = [];
+
+            for (const entry of entries) {
+                const last = reports.at(-1);
+
+                if (last && last[0].event.id === entry.event.id) {
+                    last.push(entry);
+                } else {
+                    reports.push([entry]);
+                }
+            }
+
+            return reports;
+        }
+
+        function renderTiles(items) {
+            return chunk(items).map((group, index) => {
+                const divider = index === 0
+                    ? ''
+                    : `<div class="mb-4 mt-10 flex items-center gap-3 text-xs font-extrabold uppercase tracking-wider text-slate-400"><span class="h-px flex-1 bg-slate-200 dark:bg-slate-800"></span>${icon('clock', 'h-3.5 w-3.5')} ${timeAgo(group.at[0])} · ${clock(group.at[0])}<span class="h-px flex-1 bg-slate-200 dark:bg-slate-800"></span></div>`;
+                const cards = byReport(group.items).map(renderCard).join('');
+
+                // Dense packing lets a small card move up into a hole left beside a tall one.
+                return `${divider}<div class="board grid grid-flow-row-dense [grid-template-columns:repeat(auto-fill,minmax(300px,1fr))]" style="grid-auto-rows:${ROW}px;column-gap:${GAP}px">${cards}</div>`;
+            }).join('');
+        }
+
+        /**
+         * The seen images by the agent that read them: the main session first, then each subagent.
+         */
+        function groupSeen(items) {
+            const groups = new Map();
+
+            items.forEach((item, position) => {
+                const agent = item.event.agent ?? null;
+
+                if (!groups.has(agent)) {
+                    groups.set(agent, []);
+                }
+
+                groups.get(agent).push({ ...item, position });
+            });
+
+            const list = [...groups.entries()].map(([agent, entries]) => ({ agent, entries }));
+
+            // The main session leads; the subagents follow, the most recently active first.
+            return [...list.filter(group => group.agent === null), ...list.filter(group => group.agent !== null)];
+        }
+
+        function renderSeenThumb(entry) {
+            const { event, image, position } = entry;
+            const reads = event.readCount > 1 ? `<span class="absolute right-1 top-1 rounded-full bg-black/70 px-1.5 text-[10px] font-black text-white">×${event.readCount}</span>` : '';
+
+            return `
+                <button type="button" data-open="${position}" data-list="seen" title="${escapeHtml(event.title)} · ${clock(event.at)}" class="relative aspect-video overflow-hidden rounded-md bg-slate-900 ring-1 ring-black/5 transition hover:ring-2 hover:ring-clay-400 dark:ring-white/5">
+                    <img src="${escapeHtml(image.url)}" alt="" loading="lazy" class="h-full w-full object-contain">
+                    ${reads}
+                </button>
+            `;
+        }
+
+        /**
+         * When an agent's context was last compacted, or null: what it read before is no longer in its context.
+         */
+        function lastCompaction(agent) {
+            const times = state.current?.compactions?.[agent ?? ''] ?? [];
+
+            return times.length ? Math.max(...times) : null;
+        }
+
+        /**
+         * Splits one agent's seen images, newest first, into its looks: runs of reads with no change in between.
+         * Images from before looks were tracked have no look and gather in one run of their own.
+         */
+        function byLook(entries) {
+            const looks = [];
+
+            for (const entry of entries) {
+                const last = looks.at(-1);
+
+                if (last && last.look === (entry.event.look ?? null)) {
+                    last.entries.push(entry);
+                } else {
+                    looks.push({ look: entry.event.look ?? null, entries: [entry] });
+                }
+            }
+
+            return looks.map(look => ({
+                ...look,
+                at: look.entries[0].event.at,
+                changesBefore: look.entries.find(entry => entry.event.changesBefore)?.event.changesBefore ?? null,
+            }));
+        }
+
+        function dividerLine(content, classes = 'text-slate-400') {
+            return `
+                <div class="my-3 flex items-center gap-2 text-[11px] font-extrabold ${classes}">
+                    <span class="h-px flex-1 bg-slate-200 dark:bg-slate-700"></span>
+                    ${content}
+                    <span class="h-px flex-1 bg-slate-200 dark:bg-slate-700"></span>
+                </div>
+            `;
+        }
+
+        /**
+         * The line between two looks, saying what the agent did in between.
+         */
+        function changesLine(changes) {
+            const parts = changes
+                ? [
+                    changes.edits ? `${icon('pencil', 'h-3 w-3')} Made ${changes.edits} ${changes.edits === 1 ? 'edit' : 'edits'}` : null,
+                    changes.commands ? `${icon('square-terminal', 'h-3 w-3')} Ran ${changes.commands} ${changes.commands === 1 ? 'command' : 'commands'}` : null,
+                    changes.other ? `${icon('wrench', 'h-3 w-3')} Used ${changes.other} other ${changes.other === 1 ? 'tool' : 'tools'}` : null,
+                ].filter(Boolean)
+                : [];
+
+            return dividerLine(parts.length
+                ? `<span class="inline-flex items-center gap-1.5">${parts.join('<span>·</span>')}</span>`
+                : '');
+        }
+
+        /**
+         * One agent's seen images by look, the newest look first and brightest, each look apart from the next by
+         * what the agent did in between. Looks from before the agent's last compaction fade under a line that says so.
+         */
+        function renderByLook(entries, agent) {
+            const compactedAt = lastCompaction(agent);
+            const looks = byLook(entries);
+            let isForgotten = false;
+
+            return looks.map((look, index) => {
+                const between = index > 0 ? changesLine(looks[index - 1].changesBefore) : '';
+                const startsForgetting = !isForgotten && compactedAt !== null && look.at <= compactedAt;
+                isForgotten ||= startsForgetting;
+                const compacted = startsForgetting
+                    ? dividerLine(`${icon('brain', 'h-3.5 w-3.5')} Compacted ${clock(compactedAt)} · Claude no longer has these`)
+                    : '';
+                const isNewest = index === 0;
+
+                return `
+                    ${between}
+                    ${compacted}
+                    <section class="${isForgotten ? 'opacity-50 grayscale transition hover:opacity-100 hover:grayscale-0' : ''}">
+                        <h3 title="${timeAgo(look.at)}" class="mb-2 flex items-center gap-2 text-xs font-extrabold ${isNewest ? 'text-clay-600 dark:text-clay-400' : 'text-slate-500 dark:text-slate-400'}">
+                            ${icon(isNewest ? 'sparkles' : 'eye', 'h-3.5 w-3.5')} Looked at ${images(look.entries.length)}
+                            <span class="font-bold">· ${clock(look.at)}</span>
+                        </h3>
+                        <div class="grid grid-cols-2 gap-2">${look.entries.map(renderSeenThumb).join('')}</div>
+                    </section>
+                `;
+            }).join('');
+        }
+
+        function agentName(agent) {
+            return agent ?? 'Main session';
+        }
+
+        /**
+         * The seen images as master and detail: one card per agent that read images, and one agent's images once
+         * its card is picked. With a single agent there is nothing to pick, so its images show at once.
+         */
+        function renderSeenGroups(items) {
+            if (items.length === 0) {
+                return '<p class="text-sm font-semibold text-slate-400">Nothing yet. Images Claude opens show up here.</p>';
+            }
+
+            const groups = groupSeen(items);
+            const picked = groups.length === 1 ? groups[0] : groups.find(group => group.agent === state.seenAgent);
+
+            if (picked) {
+                const back = groups.length > 1
+                    ? `<button type="button" data-seen-back class="mb-3 inline-flex items-center gap-1 text-xs font-extrabold text-slate-400 transition hover:text-slate-700 dark:hover:text-slate-200">${icon('chevron-left', 'h-4 w-4')} All agents</button>`
+                    : '';
+
+                return `
+                    ${back}
+                    <div class="mb-3 flex items-center gap-2">
+                        ${icon(picked.agent ? 'bot' : 'user-round', 'h-4 w-4 shrink-0 text-slate-400')}
+                        <span class="min-w-0 flex-1 truncate text-sm font-extrabold">${escapeHtml(agentName(picked.agent))}</span>
+                        <span class="shrink-0 rounded-full bg-slate-200 px-2 py-0.5 text-[11px] font-black text-slate-600 dark:bg-slate-700 dark:text-slate-300">${picked.entries.length}</span>
+                    </div>
+                    ${renderByLook(picked.entries, picked.agent)}
+                `;
+            }
+
+            const active = groups.filter(group => group.agent === null || isAgentRunning(group.agent));
+            const finished = groups.filter(group => group.agent !== null && !isAgentRunning(group.agent));
+            const finishedToggle = finished.length
+                ? `<button type="button" data-finished class="flex w-full items-center gap-2 px-1 pb-1 pt-3 text-xs font-extrabold uppercase tracking-wider text-slate-400 transition hover:text-slate-600 dark:hover:text-slate-200">${icon(state.showFinished ? 'chevron-down' : 'chevron-right', 'h-4 w-4')} Finished · ${finished.length}</button>`
+                : '';
+
+            // A few cards get large previews; past that they shrink to strips so every card still fits.
+            const isRoomy = active.length + (state.showFinished ? finished.length : 0) <= 3;
+
+            return [
+                active.map(group => renderAgentCard(group, true, isRoomy)).join(''),
+                finishedToggle,
+                state.showFinished ? finished.map(group => renderAgentCard(group, false, isRoomy)).join('') : '',
+            ].join('');
+        }
+
+        /**
+         * Whether a subagent is running now, as the session last told the board; the main session counts as running.
+         */
+        function isAgentRunning(agent) {
+            return state.current?.agents?.[agent]?.isRunning === true;
+        }
+
+        function renderAgentCard({ agent, entries }, isActive, isRoomy) {
+            const preview = entries.slice(0, isRoomy ? 4 : 6).map(({ image }) =>
+                `<img src="${escapeHtml(image.url)}" alt="" loading="lazy" class="aspect-video w-full rounded${isRoomy ? '-lg' : ''} bg-slate-900 object-contain">`,
+            ).join('');
+            const running = agent !== null && isActive
+                ? '<span title="Running" class="relative flex h-2 w-2 shrink-0"><span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-500 opacity-60"></span><span class="relative inline-flex h-2 w-2 rounded-full bg-emerald-500"></span></span>'
+                : '';
+
+            return `
+                <button type="button" data-seen-agent="${escapeHtml(agent ?? '')}" class="block w-full rounded-xl bg-slate-50 p-3 text-left ring-1 ring-slate-100 transition hover:ring-2 hover:ring-clay-400 dark:bg-slate-800/40 dark:ring-slate-800 ${isActive ? '' : 'opacity-60 hover:opacity-100'}">
+                    <div class="mb-2 flex items-center gap-2">
+                        ${icon(agent ? 'bot' : 'user-round', 'h-4 w-4 shrink-0 text-slate-400')}
+                        <span class="min-w-0 flex-1 truncate text-sm font-extrabold">${escapeHtml(agentName(agent))}</span>
+                        ${running}
+                        <span class="shrink-0 rounded-full bg-slate-200 px-2 py-0.5 text-[11px] font-black text-slate-600 dark:bg-slate-700 dark:text-slate-300">${entries.length}</span>
+                        ${icon('chevron-right', 'h-4 w-4 shrink-0 text-slate-400')}
+                    </div>
+                    <div class="grid ${isRoomy ? 'grid-cols-2 gap-2' : 'grid-cols-6 gap-1'}">${preview}</div>
+                </button>
+            `;
+        }
+
+        function renderSeen(items) {
+            const rail = document.getElementById('seen');
+
+            if (!state.current) {
+                rail.innerHTML = '';
+
+                return;
+            }
+
+            // Closed, the column leaves the page whole; the eye in the top bar opens it again.
+            rail.classList.toggle('xl:flex', !state.isRailCollapsed);
+            renderRailToggle(items);
+
+            if (state.isRailCollapsed) {
+                rail.innerHTML = '';
+
+                return;
+            }
+
+            rail.innerHTML = `
+                <div class="flex items-center gap-2 border-b border-slate-100 px-4 py-3 dark:border-slate-800">
+                    ${icon('eye', 'h-4 w-4 text-slate-400')}
+                    <div class="flex-1 text-xs font-extrabold uppercase tracking-wider text-slate-400">Claude looked at</div>
+                </div>
+                <div class="flex-1 space-y-2 overflow-y-auto p-4">${renderSeenGroups(items)}</div>
+            `;
+        }
+
+        /**
+         * The eye in the top bar: opens and closes the "Claude looked at" column, and counts what arrived while closed.
+         */
+        function renderRailToggle(items) {
+            const toggle = document.getElementById('rail-toggle');
+
+            if (!state.current) {
+                toggle.innerHTML = '';
+
+                return;
+            }
+
+            const fresh = state.isRailCollapsed ? Math.max(0, items.length - state.seenWhenCollapsed) : 0;
+            const looks = state.isRailCollapsed
+                ? 'text-slate-500 hover:bg-slate-100 hover:text-slate-800 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-200'
+                : 'bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-200';
+
+            toggle.innerHTML = `
+                <button type="button" data-rail title="${state.isRailCollapsed ? 'Show what Claude looked at' : 'Hide what Claude looked at'}" class="relative hidden items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-extrabold transition xl:inline-flex ${looks}">
+                    ${icon('eye', 'h-4 w-4')} Looked at
+                    ${fresh ? `<span class="rounded-full bg-clay-500 px-1.5 text-[10px] font-black text-white">${fresh}</span>` : ''}
+                </button>
+            `;
+        }
+
+        function renderEmpty(title, text) {
+            return `
+                <div class="flex h-full flex-col items-center justify-center p-10 text-center">
+                    <div class="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-clay-50 text-clay-500 dark:bg-clay-500/10">${icon('images', 'h-7 w-7')}</div>
+                    <h2 class="text-lg font-black">${title}</h2>
+                    <p class="mt-1 max-w-sm text-sm font-semibold text-slate-500 dark:text-slate-400">${text}</p>
+                </div>
+            `;
+        }
+
+        /**
+         * Switches the board between what is in review and what was reviewed: two views of the same session.
+         */
+        function renderTabs(session) {
+            const inReviewCount = state.events.filter(isInReview).length;
+            const tab = (isReviewed, label) => {
+                const isOn = state.showReviewed === isReviewed;
+
+                return `<button type="button" data-tab="${isReviewed ? 'reviewed' : 'review'}" class="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-extrabold transition ${isOn ? 'bg-white text-slate-900 shadow-sm dark:bg-slate-700 dark:text-white' : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200'}">${label}</button>`;
+            };
+
+            return `
+                <div class="inline-flex shrink-0 rounded-xl bg-slate-200/70 p-1 dark:bg-slate-800">
+                    ${tab(false, `${icon('layout-grid', 'h-3.5 w-3.5')} In review${inReviewCount ? ` · ${inReviewCount}` : ''}`)}
+                    ${tab(true, `${icon('circle-check', 'h-3.5 w-3.5')} Reviewed${session.reviewedCount ? ` · ${session.reviewedCount}` : ''}`)}
+                </div>
+            `;
+        }
+
+        /**
+         * The shield beside the session's title: green while the session is protected from the cleanup, grey
+         * otherwise. Hovering it explains the state; clicking it switches the state.
+         */
+        function renderCleanupShield(session) {
+            const [heading, text, action] = session.isKept
+                ? ['Protected', 'Auto cleanup is off: nothing in this session is ever deleted.', 'Click to turn auto cleanup on.']
+                : ['Auto cleanup is on', 'Old images are trimmed, and the session is deleted after 7 idle days.', 'Click to protect this session.'];
+
+            return `
+                <div class="group relative shrink-0">
+                    <button type="button" data-keep="${escapeHtml(session.id)}" class="rounded-lg p-1.5 transition hover:bg-slate-200 dark:hover:bg-slate-800 ${session.isKept ? 'text-emerald-500 hover:text-emerald-600' : 'text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}">${icon(session.isKept ? 'shield-check' : 'shield', 'h-5 w-5')}</button>
+                    <div class="pointer-events-none absolute left-0 top-full z-20 mt-1 hidden w-72 rounded-xl bg-white p-3 shadow-xl ring-1 ring-slate-200 group-hover:block dark:bg-slate-900 dark:ring-slate-700">
+                        <div class="text-sm font-extrabold ${session.isKept ? 'text-emerald-600 dark:text-emerald-400' : ''}">${heading}</div>
+                        <div class="mt-0.5 text-xs font-semibold text-slate-500 dark:text-slate-400">${text}</div>
+                        <div class="mt-2 text-xs font-bold text-slate-400">${action}</div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderHeader(session) {
+            const status = STATUSES[session.status] ?? STATUSES.ended;
+
+            return `
+                <header class="sticky top-0 z-10 border-b border-slate-200/80 bg-slate-100/85 backdrop-blur dark:border-slate-800 dark:bg-slate-950/85">
+                    <div class="flex flex-wrap items-center gap-x-4 gap-y-3 px-5 py-3">
+                        <div class="flex min-w-0 items-center gap-1">
+                            <h1 class="truncate text-2xl font-black tracking-tight">${escapeHtml(session.title)}</h1>
+                            ${renderCleanupShield(session)}
+                        </div>
+                        <span class="inline-flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-extrabold ring-1 ${status.pill}">${statusDot(session.status)} ${status.label}</span>
+                        <div class="ml-auto flex flex-wrap items-center gap-3">
+                            ${!state.showReviewed && inReviewImageCount() ? `<button type="button" data-review-all class="inline-flex items-center gap-1.5 rounded-xl bg-white px-3 py-2 text-xs font-extrabold text-slate-600 shadow-sm ring-1 ring-slate-200 transition hover:bg-emerald-500 hover:text-white hover:ring-emerald-500 dark:bg-slate-900 dark:text-slate-300 dark:ring-slate-700">${icon('check-check', 'h-4 w-4')} Mark all as reviewed</button>` : ''}
+                            ${renderTabs(session)}
+                        </div>
+                    </div>
+                </header>
+            `;
+        }
+
+        function lists() {
+            const shown = state.events.filter(event => event.images.length > 0);
+
+            return {
+                questions: flatten(shown.filter(isPending)),
+                // The board shows what is in review, or, on the Reviewed tab, only what was reviewed.
+                board: flatten(shown.filter(event =>
+                    event.kind !== 'seen' && !isPending(event) && (event.isReviewed === true) === state.showReviewed,
+                )),
+                seen: flatten(shown.filter(event => event.kind === 'seen')),
+            };
+        }
+
+        /**
+         * Redraws the page, keeping the focus and the caret of the field being typed in.
+         */
+        function render() {
+            const active = document.activeElement;
+            const focus = active?.id && active.closest('#main, #question-view')
+                ? { id: active.id, start: active.selectionStart, end: active.selectionEnd }
+                : null;
+
+            draw();
+            renderQuestionView();
+            window.lucide?.createIcons();
+
+            const field = focus && document.getElementById(focus.id);
+
+            if (field) {
+                field.focus();
+                field.setSelectionRange?.(focus.start, focus.end);
+            }
+        }
+
+        function draw() {
+            const main = document.getElementById('main');
+            const session = state.current;
+
+            if (!session) {
+                main.innerHTML = !state.isLoaded
+                    ? renderEmpty('Loading…', 'Fetching the sessions from the board.')
+                    : state.sessions.size
+                        ? renderEmpty('Pick a session', 'Choose a session on the left to see what Claude is making.')
+                        : renderEmpty('Nothing to show yet', 'A session appears here the first time Claude shows you an image.');
+                renderSeen([]);
+                updateTitle();
+                window.lucide?.createIcons();
+
+                return;
+            }
+
+            const { questions, board, seen } = lists();
+            const pending = state.events.filter(event => isPending(event) && event.images.length > 0).reverse();
+
+            main.innerHTML = `
+                ${renderHeader(session)}
+                <div class="space-y-6 px-5 py-5">
+                    ${pending.map(event => renderQuestion(event, questions)).join('')}
+                    <div>${renderBoard(board)}</div>
+                    <div class="xl:hidden">
+                        <h2 class="mb-3 text-xs font-extrabold uppercase tracking-wider text-slate-400">Claude looked at</h2>
+                        <div class="space-y-2">${renderSeenGroups(seen)}</div>
+                    </div>
+                </div>
+            `;
+
+            renderSeen(seen);
+            updateTitle();
+            window.lucide?.createIcons();
+            watchCards();
+        }
+
+        /**
+         * Spans each card over as many columns as its report needs (a report of three or more takes the whole
+         * row), then over as many grid rows as it is tall, which packs the board as a masonry.
+         */
+        function layoutCard(card) {
+            const columns = getComputedStyle(card.parentElement).gridTemplateColumns.split(' ').length;
+            const wanted = { all: columns, auto: autoSpan(card.querySelector('img')) }[card.dataset.span] ?? Number(card.dataset.span);
+            const span = Math.min(wanted, columns);
+            card.style.gridColumn = `span ${span}`;
+            justifyCollage(card);
+            card.style.gridRowEnd = `span ${Math.ceil((card.getBoundingClientRect().height + GAP) / ROW)}`;
+        }
+
+        /**
+         * How many columns a single picture spans by its shape: a wide one (16:10 or wider) gets two, so it stands
+         * about as tall as a square or upright one in one column.
+         */
+        function autoSpan(image) {
+            const isWide = image?.naturalWidth / image?.naturalHeight >= 1.6;
+
+            return isWide ? 2 : 1;
+        }
+
+        function layoutAll() {
+            document.querySelectorAll('.card').forEach(layoutCard);
+        }
+
+        /**
+         * Gives a collage piece its image's shape, so a row of pieces fills the width at one height.
+         */
+        function shapeCollageItem(image) {
+            const item = image.closest('.collage-item');
+
+            if (item && image.naturalWidth) {
+                const ratio = image.naturalWidth / image.naturalHeight;
+                item.dataset.ratio = String(ratio);
+                item.style.flex = `${ratio} 1 0`;
+                item.style.aspectRatio = String(ratio);
+            }
+        }
+
+        const COLLAGE_ROW = 220;
+
+        /**
+         * Deals a collage's pieces, in order, into as many rows as fit about COLLAGE_ROW pixels tall, splitting
+         * them so each row holds a fair share and fills the whole width: no piece is left alone on a short row.
+         */
+        function justifyCollage(card) {
+            const collage = card.querySelector('[data-collage]');
+
+            if (!collage) {
+                return;
+            }
+
+            const items = [...collage.querySelectorAll('.collage-item')];
+            const ratios = items.map(item => Number(item.dataset.ratio) || 16 / 9);
+            const total = ratios.reduce((sum, ratio) => sum + ratio, 0);
+            const width = collage.getBoundingClientRect().width;
+            const count = Math.min(items.length, Math.max(1, Math.round((total * COLLAGE_ROW) / width)));
+            const rows = Array.from({ length: count }, () => {
+                const row = document.createElement('div');
+                row.className = 'flex gap-1';
+
+                return row;
+            });
+            let before = 0;
+
+            items.forEach((item, index) => {
+                // A piece goes to the row its middle falls in, measured along all the pieces' widths.
+                const row = Math.min(count - 1, Math.floor(((before + ratios[index] / 2) / total) * count));
+                rows[row].append(item);
+                before += ratios[index];
+            });
+
+            collage.replaceChildren(...rows.filter(row => row.childElementCount > 0));
+        }
+
+        /**
+         * Gives a before-and-after slider its images' shape, no taller than the screen, so the split line runs
+         * from the picture's top edge to its bottom edge.
+         */
+        function shapeSlider(image) {
+            const slider = image.closest('[data-slider]');
+
+            if (slider && image.naturalWidth) {
+                const ratio = image.naturalWidth / image.naturalHeight;
+                slider.style.aspectRatio = String(ratio);
+                slider.style.width = `min(100%, calc(var(--screen-fit) * ${ratio}))`;
+            }
+        }
+
+        function watchCards() {
+            document.querySelectorAll('.card').forEach(card => {
+                for (const image of card.querySelectorAll('img')) {
+                    if (image.complete) {
+                        shapeCollageItem(image);
+                        shapeSlider(image);
+                    } else {
+                        image.addEventListener('load', () => {
+                            shapeCollageItem(image);
+                            shapeSlider(image);
+                            layoutCard(card);
+                        }, { once: true });
+                    }
+                }
+
+                layoutCard(card);
+            });
+
+            watchUnseen();
+        }
+
+        const SEEN_AFTER_MS = 2000;
+        // The new reports at least half in view (or filling half the screen), and the timers that mark them seen.
+        const sighting = { inView: new Set(), timers: new Map() };
+
+        function canSee() {
+            return document.visibilityState === 'visible' && document.hasFocus();
+        }
+
+        /**
+         * Starts the count for a report in view: if it is still in view and the page still in front once the
+         * time is up, it is marked seen.
+         */
+        function startSighting(id) {
+            if (sighting.timers.has(id) || !canSee()) {
+                return;
+            }
+
+            sighting.timers.set(id, setTimeout(() => {
+                sighting.timers.delete(id);
+
+                if (sighting.inView.has(id) && canSee()) {
+                    markViewed([id]);
+                }
+            }, SEEN_AFTER_MS));
+        }
+
+        function stopSighting(id) {
+            clearTimeout(sighting.timers.get(id));
+            sighting.timers.delete(id);
+        }
+
+        const sightingObserver = new IntersectionObserver(entries => {
+            for (const entry of entries) {
+                const id = entry.target.dataset.unseen;
+                const isInView = entry.intersectionRatio >= 0.5
+                    || entry.intersectionRect.height >= (entry.rootBounds?.height ?? Infinity) / 2;
+
+                if (isInView) {
+                    sighting.inView.add(id);
+                    startSighting(id);
+                } else {
+                    sighting.inView.delete(id);
+                    stopSighting(id);
+                }
+            }
+        }, { threshold: [0, 0.25, 0.5, 0.75, 1] });
+
+        /**
+         * Watches the new reports on the page again after a redraw. A count already running keeps going, so
+         * redraws do not delay it.
+         */
+        function watchUnseen() {
+            sightingObserver.disconnect();
+            sighting.inView.clear();
+            document.querySelectorAll('[data-unseen]').forEach(card => sightingObserver.observe(card));
+        }
+
+        // Coming back to the page restarts the count for what is in view.
+        function resumeSighting() {
+            sighting.inView.forEach(startSighting);
+        }
+
+        document.addEventListener('visibilitychange', resumeSighting);
+        window.addEventListener('focus', resumeSighting);
+
+        function markViewed(eventIds) {
+            const ids = eventIds.filter(id => state.events.some(event => event.id === id && isUnseen(event)));
+
+            if (ids.length > 0 && state.current) {
+                post('/viewed', { eventIds: ids });
+            }
+        }
+
+        // The before-and-after slider follows the pointer.
+        document.addEventListener('pointermove', event => {
+            const slider = event.target.closest?.('[data-slider]');
+
+            if (slider) {
+                const box = slider.getBoundingClientRect();
+                const split = Math.min(100, Math.max(0, ((event.clientX - box.left) / box.width) * 100));
+                slider.style.setProperty('--split', `${split}%`);
+            }
+        });
+
+        new ResizeObserver(() => requestAnimationFrame(layoutAll)).observe(document.getElementById('main'));
+
+        /**
+         * Names the page after the open session, behind a mark and a count while any session has new reports or
+         * questions, so the browser tab says when there is something to look at.
+         */
+        function updateTitle() {
+            const waiting = [...state.sessions.values()]
+                .reduce((total, session) => total + (session.unseenCount ?? 0) + (session.pendingCount ?? 0), 0);
+            const prefix = waiting ? `🟠 ${waiting} · ` : '';
+            document.title = `${prefix}${state.current?.title ?? 'Show and Tell'}`;
+        }
+
+        async function selectSession(id) {
+            const response = id ? await fetch(`/api/sessions/${encodeURIComponent(id)}`) : null;
+
+            if (response?.ok) {
+                const { events, ...session } = await response.json();
+                state.sessions.set(session.id, session);
+                state.current = session;
+                state.events = events;
+            } else {
+                state.current = null;
+                state.events = [];
+            }
+
+            state.isLoaded = true;
+            state.seenAgent = undefined;
+            state.showReviewed = false;
+            // The collapsed column badges only what arrives after the session is opened.
+            state.seenWhenCollapsed = lists().seen.length;
+            renderSessions();
+            render();
+        }
+
+        function showLightbox() {
+            const { items, index } = state.lightbox;
+            const item = items[index];
+
+            if (!item) {
+                return;
+            }
+
+            const { event, image } = item;
+            const meta = [
+                image.label ? escapeHtml(image.label) : null,
+                event.agent ? `${icon('bot', 'inline h-3 w-3')} ${escapeHtml(event.agent)}` : null,
+                clock(event.at),
+                `${index + 1} / ${items.length}`,
+            ].filter(Boolean);
+
+            document.getElementById('lightbox-image').src = image.url;
+            resetZoom();
+            resetArea();
+            document.getElementById('lightbox-title').textContent = event.title;
+            document.getElementById('lightbox-meta').innerHTML = meta.map(part => `<span>${part}</span>`).join('<span>·</span>');
+            document.getElementById('lightbox-note-text').textContent = event.text;
+            document.getElementById('lightbox-note').classList.toggle('hidden', !event.text);
+            document.getElementById('lightbox-download').href = image.url;
+            document.getElementById('lightbox-download').download = image.name;
+            document.getElementById('comment-form').classList.toggle('hidden', !isOpen(state.current));
+            document.getElementById('lightbox').classList.replace('hidden', 'flex');
+            updatePick();
+            renderStrip();
+            window.lucide?.createIcons();
+        }
+
+        /**
+         * Offers to pick the option on screen when the viewer walks the options of an open question.
+         */
+        function updatePick() {
+            const button = document.getElementById('lightbox-pick');
+            const item = state.lightbox.items[state.lightbox.index];
+            const isOption = isLightboxOpen() && item && isPending(item.event) && isOpen(state.current);
+
+            button.classList.toggle('hidden', !isOption);
+            button.classList.toggle('flex', Boolean(isOption));
+
+            if (!isOption) {
+                return;
+            }
+
+            const isChosen = draftFor(item.event.id).choices.includes(item.index);
+            const name = `${LETTERS[item.index]}${item.image.label ? ` · ${item.image.label}` : ''}`;
+            button.dataset.choose = item.event.id;
+            button.dataset.index = String(item.index);
+            button.className = `flex w-full items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-extrabold transition ${isChosen ? 'bg-emerald-500 text-white hover:bg-emerald-600' : 'bg-clay-500 text-white hover:bg-clay-600'}`;
+            button.innerHTML = isChosen
+                ? `${icon('check', 'h-4 w-4')} Picked ${escapeHtml(name)}`
+                : `${icon('circle', 'h-4 w-4')} Pick ${escapeHtml(name)}`;
+            window.lucide?.createIcons();
+        }
+
+        const MAX_ZOOM = 8;
+        const zoom = { scale: 1, x: 0, y: 0, drag: null };
+
+        /**
+         * How much the viewer shrinks or grows the image to fit it whole: 1 is the image's own pixels.
+         */
+        function fitScale() {
+            const image = document.getElementById('lightbox-image');
+            const stage = document.getElementById('lightbox-stage').getBoundingClientRect();
+
+            return image.naturalWidth
+                ? Math.min(stage.width / image.naturalWidth, stage.height / image.naturalHeight)
+                : 1;
+        }
+
+        function applyZoom() {
+            const image = document.getElementById('lightbox-image');
+            const label = document.getElementById('lightbox-zoom');
+            const pixels = zoom.scale * fitScale();
+
+            image.style.transform = `translate(${zoom.x}px, ${zoom.y}px) scale(${zoom.scale})`;
+            // Past twice its own size an image reads better as sharp pixels than as a blur.
+            image.style.imageRendering = pixels >= 2 ? 'pixelated' : 'auto';
+            label.textContent = `${Math.round(pixels * 100)}%`;
+            label.classList.toggle('hidden', zoom.scale === 1);
+            document.getElementById('lightbox-stage').style.cursor = area.isOn
+                ? 'crosshair'
+                : zoom.scale > 1 ? (zoom.drag ? 'grabbing' : 'grab') : 'zoom-in';
+            drawAreaBox();
+        }
+
+        // An area marked on the image to ask about, in the image's own pixels so it stays put through zoom and pan.
+        const area = { isOn: false, box: null, start: null };
+
+        function imageMetrics() {
+            const image = document.getElementById('lightbox-image');
+            const stage = document.getElementById('lightbox-stage').getBoundingClientRect();
+            const fit = fitScale();
+
+            return {
+                image,
+                fit,
+                width: image.naturalWidth,
+                height: image.naturalHeight,
+                offsetX: (stage.width - image.naturalWidth * fit) / 2,
+                offsetY: (stage.height - image.naturalHeight * fit) / 2,
+            };
+        }
+
+        /**
+         * A point on the stage as a pixel of the image, through the zoom, the pan and the fitting.
+         */
+        function stageToImage(pointX, pointY) {
+            const { fit, width, height, offsetX, offsetY } = imageMetrics();
+            const x = ((pointX - zoom.x) / zoom.scale - offsetX) / fit;
+            const y = ((pointY - zoom.y) / zoom.scale - offsetY) / fit;
+
+            return [Math.min(width, Math.max(0, x)), Math.min(height, Math.max(0, y))];
+        }
+
+        function imageToStage(x, y) {
+            const { fit, offsetX, offsetY } = imageMetrics();
+
+            return [(x * fit + offsetX) * zoom.scale + zoom.x, (y * fit + offsetY) * zoom.scale + zoom.y];
+        }
+
+        function drawAreaBox() {
+            const element = document.getElementById('area-box');
+
+            if (!area.box) {
+                element.classList.add('hidden');
+
+                return;
+            }
+
+            const [left, top] = imageToStage(area.box.x0, area.box.y0);
+            const [right, bottom] = imageToStage(area.box.x1, area.box.y1);
+            Object.assign(element.style, { left: `${left}px`, top: `${top}px`, width: `${right - left}px`, height: `${bottom - top}px` });
+            element.classList.remove('hidden');
+        }
+
+        function updateAreaControls() {
+            const toggle = document.getElementById('area-toggle');
+            toggle.classList.toggle('bg-clay-500', area.isOn);
+            toggle.classList.toggle('bg-white/10', !area.isOn);
+            toggle.querySelector('span').textContent = area.isOn ? 'Drag over the image…' : 'Ask about an area';
+            document.getElementById('comment-input').placeholder = area.box ? 'Ask about the marked area…' : 'Write a note about this image…';
+            document.getElementById('area-clear').classList.toggle('hidden', !area.box);
+            applyZoom();
+        }
+
+        function resetArea() {
+            Object.assign(area, { isOn: false, box: null, start: null });
+            updateAreaControls();
+        }
+
+        function canvasOf(width, height) {
+            const canvas = document.createElement('canvas');
+            canvas.width = width;
+            canvas.height = height;
+
+            return canvas;
+        }
+
+        /**
+         * Sends a question about the marked area, with the area cut out and the whole image with the area outlined.
+         */
+        async function sendAreaQuestion(item, text) {
+            const { image, width, height } = imageMetrics();
+            const box = {
+                x0: Math.round(area.box.x0),
+                y0: Math.round(area.box.y0),
+                x1: Math.round(area.box.x1),
+                y1: Math.round(area.box.y1),
+            };
+            const crop = canvasOf(Math.max(1, box.x1 - box.x0), Math.max(1, box.y1 - box.y0));
+            crop.getContext('2d').drawImage(image, box.x0, box.y0, crop.width, crop.height, 0, 0, crop.width, crop.height);
+
+            const marked = canvasOf(width, height);
+            const context = marked.getContext('2d');
+            context.drawImage(image, 0, 0);
+            context.strokeStyle = '#d97757';
+            context.lineWidth = Math.max(3, width / 250);
+            context.strokeRect(box.x0, box.y0, box.x1 - box.x0, box.y1 - box.y0);
+
+            return post('/areas', {
+                eventId: item.event.id,
+                imageIndex: item.index,
+                text,
+                box: { ...box, width, height },
+                crop: crop.toDataURL('image/png'),
+                marked: marked.toDataURL('image/png'),
+            });
+        }
+
+        function resetZoom() {
+            Object.assign(zoom, { scale: 1, x: 0, y: 0, drag: null });
+            applyZoom();
+        }
+
+        /**
+         * Keeps the zoomed image covering the stage, so it can never be panned off screen.
+         */
+        function clampPan() {
+            const stage = document.getElementById('lightbox-stage').getBoundingClientRect();
+            zoom.x = Math.min(0, Math.max(stage.width - stage.width * zoom.scale, zoom.x));
+            zoom.y = Math.min(0, Math.max(stage.height - stage.height * zoom.scale, zoom.y));
+        }
+
+        /**
+         * Zooms to a scale while the point under the cursor (stage coordinates) stays where it is.
+         */
+        function zoomAt(pointX, pointY, scale) {
+            const next = Math.min(MAX_ZOOM, Math.max(1, scale));
+
+            if (next === 1) {
+                resetZoom();
+
+                return;
+            }
+
+            zoom.x = pointX - (pointX - zoom.x) * (next / zoom.scale);
+            zoom.y = pointY - (pointY - zoom.y) * (next / zoom.scale);
+            zoom.scale = next;
+            clampPan();
+            applyZoom();
+        }
+
+        function stagePoint(event) {
+            const box = document.getElementById('lightbox-stage').getBoundingClientRect();
+
+            return [event.clientX - box.left, event.clientY - box.top];
+        }
+
+        function zoomByKey(factor) {
+            const box = document.getElementById('lightbox-stage').getBoundingClientRect();
+            zoomAt(box.width / 2, box.height / 2, zoom.scale * factor);
+        }
+
+        const stage = document.getElementById('lightbox-stage');
+
+        stage.addEventListener('wheel', event => {
+            event.preventDefault();
+            zoomAt(...stagePoint(event), zoom.scale * Math.exp(-event.deltaY * 0.0015));
+        }, { passive: false });
+
+        // A double click shows the image at its own pixels, the size to read small text at, or fits it back.
+        stage.addEventListener('dblclick', event => {
+            if (zoom.scale > 1) {
+                resetZoom();
+            } else {
+                zoomAt(...stagePoint(event), Math.max(2, 1 / fitScale()));
+            }
+        });
+
+        stage.addEventListener('pointerdown', event => {
+            if (area.isOn) {
+                // While marking, a drag draws the area instead of panning.
+                area.start = stageToImage(...stagePoint(event));
+                area.box = null;
+                stage.setPointerCapture(event.pointerId);
+            } else if (zoom.scale > 1) {
+                zoom.drag = { pointerX: event.clientX, pointerY: event.clientY, x: zoom.x, y: zoom.y };
+                stage.setPointerCapture(event.pointerId);
+                applyZoom();
+            }
+        });
+
+        stage.addEventListener('pointermove', event => {
+            if (area.start) {
+                const [x, y] = stageToImage(...stagePoint(event));
+                const [startX, startY] = area.start;
+                area.box = { x0: Math.min(startX, x), y0: Math.min(startY, y), x1: Math.max(startX, x), y1: Math.max(startY, y) };
+                drawAreaBox();
+            } else if (zoom.drag) {
+                zoom.x = zoom.drag.x + event.clientX - zoom.drag.pointerX;
+                zoom.y = zoom.drag.y + event.clientY - zoom.drag.pointerY;
+                clampPan();
+                applyZoom();
+            }
+        });
+
+        stage.addEventListener('pointerup', () => {
+            if (area.start) {
+                const isTiny = !area.box || area.box.x1 - area.box.x0 < 4 || area.box.y1 - area.box.y0 < 4;
+                area.start = null;
+                area.isOn = false;
+                area.box = isTiny ? null : area.box;
+                updateAreaControls();
+
+                if (area.box) {
+                    document.getElementById('comment-input').focus();
+                }
+
+                return;
+            }
+
+            zoom.drag = null;
+            applyZoom();
+        });
+
+        /**
+         * Opens the viewer on one report alone, at one of its images, so its arrows never leave the report.
+         */
+        function openReport(eventId, index) {
+            const event = state.events.find(one => one.id === eventId);
+
+            if (event) {
+                state.lightbox = { items: flatten([event]), index };
+                showLightbox();
+                markViewed([eventId]);
+            }
+        }
+
+        function renderStrip() {
+            const strip = document.getElementById('lightbox-strip');
+            const { items, index } = state.lightbox;
+
+            strip.classList.toggle('hidden', items.length <= 1);
+            strip.classList.toggle('flex', items.length > 1);
+            strip.innerHTML = items.length <= 1 ? '' : items.map((item, position) => `
+                <button type="button" data-step-to="${position}" class="shrink-0 overflow-hidden rounded-md bg-slate-900 transition ${position === index ? 'ring-2 ring-clay-400' : 'opacity-60 ring-1 ring-white/10 hover:opacity-100'}">
+                    <img src="${escapeHtml(item.image.url)}" alt="" class="h-14 w-24 object-contain">
+                </button>
+            `).join('');
+            strip.querySelector('.ring-clay-400')?.scrollIntoView({ block: 'nearest', inline: 'center' });
+        }
+
+        function stepLightbox(step) {
+            const { items, index } = state.lightbox;
+            state.lightbox.index = (index + step + items.length) % items.length;
+            document.getElementById('comment-input').value = '';
+            showLightbox();
+        }
+
+        function closeLightbox() {
+            document.getElementById('lightbox').classList.replace('flex', 'hidden');
+            document.getElementById('comment-input').value = '';
+            resetArea();
+        }
+
+        function isLightboxOpen() {
+            return document.getElementById('lightbox').classList.contains('flex');
+        }
+
+        function applySession(session, { seenIds = [], viewedIds = [], answers = [], reviewed = [], droppedIds = [] } = {}) {
+            state.sessions.set(session.id, session);
+
+            if (session.id !== state.current?.id) {
+                return;
+            }
+
+            state.current = session;
+            state.events = state.events.filter(event => !droppedIds.includes(event.id));
+
+            for (const event of state.events) {
+                if (seenIds.includes(event.id)) {
+                    event.isSeen = true;
+                }
+
+                if (viewedIds.includes(event.id)) {
+                    event.isViewed = true;
+                }
+
+                const change = reviewed.find(one => one.eventId === event.id);
+
+                if (change) {
+                    event.isReviewed = change.isReviewed;
+                }
+
+                const answered = answers.find(one => one.eventId === event.id);
+
+                if (answered) {
+                    event.answer = answered.answer;
+                }
+            }
+
+            render();
+        }
+
+        const STREAM_HANDLERS = {
+            event({ session, event }) {
+                state.sessions.set(session.id, session);
+
+                if (session.id === state.current?.id) {
+                    state.current = session;
+                    // An image read again comes back as the same event, now the newest.
+                    state.events = [...state.events.filter(one => one.id !== event.id), event];
+                    render();
+                }
+
+                renderSessions();
+            },
+
+            session({ session, ...changes }) {
+                applySession(session, changes);
+                renderSessions();
+            },
+
+            delivered({ session }) {
+                applySession(session);
+
+                if (session.id === state.current?.id) {
+                    toast('Claude got your message', 'check-check');
+                }
+            },
+
+            removed({ sessionId }) {
+                state.sessions.delete(sessionId);
+
+                if (sessionId === state.current?.id) {
+                    selectSession(null);
+                }
+
+                renderSessions();
+            },
+
+            async open() {
+                state.isConnected = true;
+                renderConnection();
+                const response = await fetch('/api/sessions');
+
+                for (const session of await response.json()) {
+                    state.sessions.set(session.id, session);
+                }
+
+                await selectSession(currentId());
+            },
+
+            error() {
+                state.isConnected = false;
+                renderConnection();
+            },
+        };
+
+        /**
+         * Follows the board live through the stream every tab shares (see stream-worker.js).
+         */
+        function connect() {
+            const worker = new SharedWorker('/stream-worker.js');
+
+            worker.port.onmessage = ({ data: message }) => {
+                STREAM_HANDLERS[message.type]?.(message.data === null ? {} : JSON.parse(message.data));
+            };
+            worker.port.start();
+        }
+
+        async function sendAnswer(eventId) {
+            const draft = draftFor(eventId);
+            const isSent = await post('/messages', {
+                eventId,
+                answer: {
+                    choices: draft.choices,
+                    other: draft.isOther ? draft.text : '',
+                    notes: draft.isOther ? '' : draft.text,
+                },
+            });
+
+            if (isSent) {
+                state.drafts.delete(eventId);
+                state.questionView = null;
+                render();
+                toast('Answer sent', 'send');
+            }
+        }
+
+        /**
+         * Picks or unpicks an option; index -1 is "Other". A single-choice question keeps one pick.
+         */
+        function choose(eventId, index) {
+            const event = state.events.find(one => one.id === eventId);
+            const draft = draftFor(eventId);
+            const isOther = index === -1;
+            const isPicked = isOther ? draft.isOther : draft.choices.includes(index);
+
+            if (event?.isMultiSelect) {
+                if (isOther) {
+                    draft.isOther = !isPicked;
+                } else {
+                    draft.choices = isPicked ? draft.choices.filter(one => one !== index) : [...draft.choices, index];
+                }
+            } else {
+                draft.isOther = isOther && !isPicked;
+                draft.choices = !isOther && !isPicked ? [index] : [];
+            }
+
+            render();
+            updatePick();
+
+            if (isOther && draft.isOther) {
+                const field = state.questionView === eventId ? `review-answer-${eventId}` : `answer-${eventId}`;
+                document.getElementById(field)?.focus();
+            }
+        }
+
+        document.addEventListener('click', event => {
+            const link = event.target.closest('a.session');
+
+            if (link) {
+                event.preventDefault();
+                history.pushState(null, '', link.getAttribute('href'));
+                selectSession(link.dataset.id);
+
+                return;
+            }
+
+            const target = event.target.closest('[data-seen], [data-keep], [data-choose], [data-answer], [data-step], [data-step-to], [data-open], [data-close], [data-seen-agent], [data-seen-back], [data-finished], [data-rail], [data-area-toggle], [data-area-clear], [data-review-all], [data-review], [data-review-close], [data-mark-reviewed], [data-tab], [data-report]');
+
+            if (!target) {
+                return;
+            }
+
+            if (target.hasAttribute('data-area-toggle')) {
+                area.isOn = !area.isOn;
+                updateAreaControls();
+
+                return;
+            }
+
+            if (target.hasAttribute('data-area-clear')) {
+                resetArea();
+
+                return;
+            }
+
+            if (target.hasAttribute('data-rail')) {
+                setRailCollapsed(!state.isRailCollapsed);
+
+                return;
+            }
+
+            if (target.hasAttribute('data-finished')) {
+                state.showFinished = !state.showFinished;
+                render();
+
+                return;
+            }
+
+            if (target.dataset.markReviewed) {
+                const report = state.events.find(one => one.id === target.dataset.markReviewed);
+                post(`/events/${encodeURIComponent(target.dataset.markReviewed)}/reviewed`, { isReviewed: report?.isReviewed !== true });
+            } else if (target.dataset.tab) {
+                state.showReviewed = target.dataset.tab === 'reviewed';
+                render();
+            } else if (target.dataset.report) {
+                // The slider of a before-and-after follows the pointer, so a click on it is no request to open.
+                const isSliding = target.tagName === 'ARTICLE' && event.target.closest('[data-slider]');
+
+                if (!isSliding) {
+                    openReport(target.dataset.report, Number(target.dataset.index));
+                }
+            } else if (target.dataset.stepTo) {
+                state.lightbox.index = Number(target.dataset.stepTo);
+                document.getElementById('comment-input').value = '';
+                showLightbox();
+            } else if (target.dataset.review) {
+                state.questionView = target.dataset.review;
+                render();
+            } else if (target.hasAttribute('data-review-close')) {
+                state.questionView = null;
+                render();
+            } else if (target.hasAttribute('data-review-all')) {
+                post('/reviewed');
+            } else if (target.hasAttribute('data-seen-agent')) {
+                state.seenAgent = target.dataset.seenAgent || null;
+                render();
+            } else if (target.hasAttribute('data-seen-back')) {
+                state.seenAgent = undefined;
+                render();
+            } else if (target.dataset.seen) {
+                post(`/events/${encodeURIComponent(target.dataset.seen)}/seen`);
+            } else if (target.dataset.keep) {
+                const session = state.sessions.get(target.dataset.keep);
+                fetch(`/api/sessions/${encodeURIComponent(target.dataset.keep)}/keep`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ isKept: session?.isKept !== true }),
+                });
+            } else if (target.dataset.choose) {
+                choose(target.dataset.choose, Number(target.dataset.index));
+            } else if (target.dataset.answer) {
+                sendAnswer(target.dataset.answer);
+            } else if (target.dataset.step) {
+                stepLightbox(Number(target.dataset.step));
+            } else if (target.dataset.open) {
+                state.lightbox = { items: lists()[target.dataset.list], index: Number(target.dataset.open) };
+                showLightbox();
+            } else if (target.hasAttribute('data-close') && (event.target === target || target.tagName === 'BUTTON')) {
+                // The backdrop closes the viewer, the picture on it does not.
+                closeLightbox();
+            }
+        });
+
+        document.addEventListener('input', event => {
+            const { draft: eventId } = event.target.dataset;
+
+            if (eventId) {
+                const draft = draftFor(eventId);
+                draft.text = event.target.value;
+
+                for (const button of document.querySelectorAll(`[data-answer="${CSS.escape(eventId)}"]`)) {
+                    button.disabled = !canSendAnswer(draft);
+                }
+            }
+        });
+
+        document.addEventListener('submit', async event => {
+            event.preventDefault();
+
+            if (event.target.id === 'comment-form') {
+                const input = document.getElementById('comment-input');
+                const item = state.lightbox.items[state.lightbox.index];
+
+                if (!item || !input.value.trim()) {
+                    return;
+                }
+
+                const isAboutArea = area.box !== null;
+                const isSent = isAboutArea
+                    ? await sendAreaQuestion(item, input.value)
+                    : await post('/messages', { eventId: item.event.id, imageIndex: item.index, text: input.value });
+
+                if (isSent) {
+                    input.value = '';
+                    resetArea();
+                    toast(isAboutArea ? 'Question about the area sent' : 'Note sent', 'send');
+                }
+            }
+        });
+
+        // As in Claude Code: Enter sends, Shift+Enter starts a new line.
+        document.addEventListener('keydown', event => {
+            const field = event.target;
+
+            if (!field.matches('textarea[data-send-on-enter]') || event.key !== 'Enter' || event.shiftKey || event.isComposing) {
+                return;
+            }
+
+            event.preventDefault();
+
+            if (field.form) {
+                field.form.requestSubmit();
+            } else if (field.dataset.draft) {
+                document.querySelector(`[data-answer="${CSS.escape(field.dataset.draft)}"]:not([disabled])`)?.click();
+            }
+        });
+
+        document.addEventListener('keydown', event => {
+            if (!isLightboxOpen()) {
+                if (event.key === 'Escape' && state.questionView !== null) {
+                    state.questionView = null;
+                    render();
+                }
+
+                return;
+            }
+
+            const isTyping = event.target.matches('input, textarea');
+
+            if (event.key === 'Escape') {
+                closeLightbox();
+            } else if (!isTyping && event.key === 'ArrowLeft') {
+                stepLightbox(-1);
+            } else if (!isTyping && event.key === 'ArrowRight') {
+                stepLightbox(1);
+            } else if (!isTyping && (event.key === '+' || event.key === '=')) {
+                zoomByKey(1.5);
+            } else if (!isTyping && event.key === '-') {
+                zoomByKey(1 / 1.5);
+            } else if (!isTyping && event.key === '0') {
+                resetZoom();
+            }
+        });
+
+        // The session tabs reorder by dragging, like the terminal's own tabs.
+        const sessionTabs = document.getElementById('sessions');
+
+        function clearDropMarks() {
+            sessionTabs.querySelectorAll('a.session').forEach(tab => {
+                tab.style.boxShadow = '';
+            });
+        }
+
+        function dropSpot(event) {
+            const tab = event.target.closest('a.session');
+
+            if (!tab || tab.dataset.id === state.draggedSession) {
+                return null;
+            }
+
+            const box = tab.getBoundingClientRect();
+
+            return { tab, isAfter: event.clientX > box.left + box.width / 2 };
+        }
+
+        sessionTabs.addEventListener('dragstart', event => {
+            const tab = event.target.closest('a.session');
+
+            if (tab) {
+                state.draggedSession = tab.dataset.id;
+                event.dataTransfer.effectAllowed = 'move';
+                event.dataTransfer.setData('text/plain', tab.dataset.id);
+                requestAnimationFrame(() => tab.classList.add('opacity-40'));
+            }
+        });
+
+        sessionTabs.addEventListener('dragover', event => {
+            if (!state.draggedSession) {
+                return;
+            }
+
+            event.preventDefault();
+            event.dataTransfer.dropEffect = 'move';
+            clearDropMarks();
+            const spot = dropSpot(event);
+
+            if (spot) {
+                spot.tab.style.boxShadow = `${spot.isAfter ? 'inset -3px' : 'inset 3px'} 0 0 #d97757`;
+            }
+        });
+
+        sessionTabs.addEventListener('drop', event => {
+            event.preventDefault();
+            const spot = dropSpot(event);
+
+            if (state.draggedSession && spot) {
+                moveSession(state.draggedSession, spot.tab.dataset.id, spot.isAfter);
+            }
+        });
+
+        sessionTabs.addEventListener('dragend', () => {
+            state.draggedSession = null;
+            renderSessions();
+        });
+
+        window.addEventListener('popstate', () => selectSession(currentId()));
+
+        setInterval(renderSessions, 30_000);
+        renderConnection();
+        render();
+        connect();
+    </script>
+</body>
+</html>

@@ -1,0 +1,7 @@
+{
+    "name": "show-and-tell",
+    "version": "0.1.0",
+    "description": "A live image board in Chrome: what Claude made, what Claude looked at, and the options it wants you to pick from.",
+    "author": { "name": "Javier \"Ciberman\" Mora" },
+    "types": "./types/index.d.ts"
+}

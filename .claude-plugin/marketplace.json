@@ -1,0 +1,5 @@
+{
+    "name": "show-and-tell",
+    "owner": { "name": "Javier \"Ciberman\" Mora" },
+    "plugins": [{ "name": "show-and-tell", "source": "./" }]
+}
