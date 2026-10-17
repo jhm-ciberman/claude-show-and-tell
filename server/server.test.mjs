@@ -159,13 +159,17 @@ test('keeps the newest 100 reads, and at least 10 of each agent', async () => {
         imageFiles: [...helper, ...main].map(event => `${event.id}.png`),
     });
 
-    // The board trims right after it starts listening.
+    // The board trims right after it starts listening: first the list, then the files.
     const kept = await eventually(async () => {
         const seenNow = (await events(board)).filter(event => event.kind === 'seen');
 
         return seenNow.length < helper.length + main.length ? seenNow : null;
     });
-    const files = await readdir(join(board.sessionDir, 'images'));
+    const files = await eventually(async () => {
+        const filesNow = await readdir(join(board.sessionDir, 'images'));
+
+        return filesNow.length <= kept.length + 1 ? filesNow : null;
+    });
     assert.equal(kept.filter(event => event.agent === null).length, 100);
     assert.deepEqual(kept.filter(event => event.agent === 'Helper').map(event => event.id), helper.slice(5).map(event => event.id));
     assert.ok(files.includes('m0.png'), 'a file a shown report uses stays');

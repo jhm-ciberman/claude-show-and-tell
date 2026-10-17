@@ -49,6 +49,7 @@
                 <div class="hidden text-sm font-black tracking-tight sm:block">Show and Tell</div>
             </div>
             <nav id="sessions" class="-mb-px flex min-w-0 flex-1 items-end gap-0.5 overflow-x-auto overflow-y-hidden"></nav>
+            <div id="notify-toggle" class="shrink-0 self-center pb-2"></div>
             <div id="rail-toggle" class="shrink-0 self-center pb-2"></div>
             <div id="connection" class="flex shrink-0 items-center gap-2 self-center pb-2 text-xs font-bold text-slate-500"></div>
         </div>
@@ -436,6 +437,50 @@
                     ${badge}
                 </a>
             `;
+        }
+
+        /**
+         * The bell in the top bar: asks once for leave to notify, and says so when Chrome blocks notifications.
+         * Once allowed, it gets out of the way.
+         */
+        function renderNotifyToggle() {
+            const toggle = document.getElementById('notify-toggle');
+            const permission = 'Notification' in window ? Notification.permission : 'granted';
+            const looks = 'inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-extrabold transition';
+
+            toggle.innerHTML = {
+                default: `<button type="button" data-notify title="Get a desktop notification when Claude asks you something" class="${looks} text-slate-500 hover:bg-slate-100 hover:text-slate-800 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-200">${icon('bell', 'h-4 w-4')} Notify me</button>`,
+                denied: `<span title="Notifications are blocked for this page in Chrome's site settings" class="${looks} text-slate-400">${icon('bell-off', 'h-4 w-4')}</span>`,
+            }[permission] ?? '';
+            window.lucide?.createIcons();
+        }
+
+        /**
+         * Tells the person Claude asked them something, when they are looking at another window. Every board tab
+         * hears the same question, and the shared tag folds their notifications into one.
+         */
+        function notifyQuestion(session, event) {
+            const canSee = document.visibilityState === 'visible' && document.hasFocus();
+
+            if (canSee || !('Notification' in window) || Notification.permission !== 'granted') {
+                return;
+            }
+
+            const notification = new Notification(`Claude asks: ${event.title}`, {
+                body: session.title,
+                tag: event.id,
+                icon: document.querySelector('link[rel=icon]')?.href,
+            });
+
+            notification.onclick = () => {
+                window.focus();
+                notification.close();
+
+                if (session.id !== state.current?.id) {
+                    history.pushState(null, '', `/s/${encodeURIComponent(session.id)}`);
+                    selectSession(session.id);
+                }
+            };
         }
 
         function renderConnection() {
@@ -1796,6 +1841,10 @@
             event({ session, event }) {
                 state.sessions.set(session.id, session);
 
+                if (isPending(event)) {
+                    notifyQuestion(session, event);
+                }
+
                 if (session.id === state.current?.id) {
                     state.current = session;
                     // An image read again comes back as the same event, now the newest.
@@ -1918,7 +1967,7 @@
                 return;
             }
 
-            const target = event.target.closest('[data-seen], [data-keep], [data-choose], [data-answer], [data-step], [data-step-to], [data-open], [data-close], [data-seen-agent], [data-seen-back], [data-finished], [data-rail], [data-area-toggle], [data-area-clear], [data-review-all], [data-review], [data-review-close], [data-mark-reviewed], [data-tab], [data-report]');
+            const target = event.target.closest('[data-seen], [data-keep], [data-choose], [data-answer], [data-step], [data-step-to], [data-open], [data-close], [data-seen-agent], [data-seen-back], [data-finished], [data-notify], [data-rail], [data-area-toggle], [data-area-clear], [data-review-all], [data-review], [data-review-close], [data-mark-reviewed], [data-tab], [data-report]');
 
             if (!target) {
                 return;
@@ -1933,6 +1982,12 @@
 
             if (target.hasAttribute('data-area-clear')) {
                 resetArea();
+
+                return;
+            }
+
+            if (target.hasAttribute('data-notify')) {
+                Notification.requestPermission().then(renderNotifyToggle);
 
                 return;
             }
@@ -2151,6 +2206,7 @@
 
         setInterval(renderSessions, 30_000);
         renderConnection();
+        renderNotifyToggle();
         render();
         connect();
     </script>

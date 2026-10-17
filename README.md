@@ -35,20 +35,21 @@ Then run `/reload-plugins` in any open session.
 - The mod gives Claude a `show` tool: a title and some images, with an optional description and layout, or a question for you to answer.
 - The first time a session shows something, the mod starts the board server if it is not running and opens the session's page in Chrome. Sessions that never show anything never open a tab.
 - From then on, the session also sends what it does on its own: each image it reads, whether it is working or waiting for you, and when it ends.
-- A question stays on top until you answer it on the board or dismiss it. When you answer in the terminal instead, Claude closes it with its `close_questions` tool.
+- A question stays on top until you answer it on the board or dismiss it. When you answer in the terminal instead, Claude closes it with its `close_questions` tool. Click **Notify me** in the top bar to also get a desktop notification when Claude asks while you are in another window.
 - Each call to `show` is one report, and the board keeps its images together as one card. A report picks its layout: a plain grid, a side-by-side comparison, a packed collage, a before-and-after slider, or numbered variations.
 
 Once a session shows something, a line above the prompt links to its board and counts the reports you have not seen yet and the questions waiting for you (ctrl+click the link). `/show-and-tell` opens the board at any time. The board's browser tab shows the same count, for every session, in its title.
 
-The server runs on Windows at `http://localhost:7777` and is shared by every session. Sessions inside WSL reach it through the WSL virtual network, and paths are converted both ways.
+The server runs at `http://localhost:7777` and is shared by every session on the machine. On Windows, sessions inside WSL use the server on the Windows side: they reach it through the WSL virtual network, and paths are converted both ways.
 
 ## Requirements
 
-- Windows, with Node.js 20.11 or newer and Chrome. Sessions can run on Windows or inside WSL.
+- Windows, macOS or Linux, with Node.js 20.11 or newer. On Windows, sessions can also run inside WSL.
+- Chrome. Without it, the board opens in your default browser.
 
 ## Data
 
-Sessions and their images are stored in `%USERPROFILE%\.claude\show-and-tell`. Of the images Claude looked at, each session keeps the newest 100, at any age, and at least the newest 10 of each agent. A session idle for 7 days is deleted, and when everything goes over 1 GB the oldest sessions are deleted first. Sessions with auto cleanup off are never touched.
+Sessions and their images are stored in `.claude/show-and-tell` in your home folder (`%USERPROFILE%` on Windows). Of the images Claude looked at, each session keeps the newest 100, at any age, and at least the newest 10 of each agent. A session idle for 7 days is deleted, and when everything goes over 1 GB the oldest sessions are deleted first. Sessions with auto cleanup off are never touched.
 
 ## Development
 

@@ -304,12 +304,26 @@ function broadcast(type, payload) {
     }
 }
 
+/**
+ * Opens a page in Chrome, or in the default browser where Chrome is not installed.
+ */
 function openInChrome(url) {
-    exec(`start "" chrome "${url}"`, error => {
-        if (error) {
-            console.error(`Could not open Chrome: ${error.message}`);
-        }
-    });
+    if (process.platform === 'win32') {
+        exec(`start "" chrome "${url}"`, error => {
+            if (error) {
+                console.error(`Could not open Chrome: ${error.message}`);
+            }
+        });
+
+        return;
+    }
+
+    const command = process.platform === 'darwin'
+        ? `open -a "Google Chrome" "${url}" || open "${url}"`
+        : `google-chrome "${url}" || chromium "${url}" || xdg-open "${url}"`;
+
+    // A browser started here may run for hours and talk a lot, so it is left on its own instead of awaited.
+    spawn(command, { shell: true, stdio: 'ignore', detached: true }).unref();
 }
 
 function hashImage(base64) {
