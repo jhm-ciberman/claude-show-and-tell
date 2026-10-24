@@ -217,6 +217,18 @@ test('hands the messages to the session once, with the board state', async () =>
     assert.deepEqual(second.messages, []);
 });
 
+test('names the newest picture shown as the session thumbnail, or the newest read when nothing was shown', async () => {
+    const board = await startBoard();
+
+    const { session: onlyRead } = await post(board, '/events', read('fence'));
+    assert.match(onlyRead.thumbUrl, /\.png$/);
+
+    const { session: shown } = await post(board, '/events', { kind: 'progress', title: 'Sofa', images: [image('sofa')] });
+    const { session: readLater } = await post(board, '/events', read('gate'));
+    assert.notEqual(shown.thumbUrl, onlyRead.thumbUrl);
+    assert.equal(readLater.thumbUrl, shown.thumbUrl);
+});
+
 test('takes the status the session reports', async () => {
     const board = await startBoard();
 

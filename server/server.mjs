@@ -98,6 +98,7 @@ function summary(session) {
     const countImages = list => list.reduce((total, event) => total + event.images.length, 0);
     const seenCount = countImages(events.filter(event => event.kind === 'seen'));
     const imageCount = countImages(events);
+    const newestImage = list => list.findLast(event => event.images.length > 0)?.images[0]?.url ?? null;
 
     return {
         ...rest,
@@ -111,6 +112,8 @@ function summary(session) {
         unseenCount: events.filter(isUnseen).length,
         reviewedCount: events.filter(event => event.isReviewed === true).length,
         waitingCount: inbox.length,
+        // What Claude showed stands for the session better than what it only read.
+        thumbUrl: newestImage(events.filter(event => event.kind !== 'seen')) ?? newestImage(events),
     };
 }
 
