@@ -309,7 +309,7 @@ function broadcast(type, payload) {
  */
 function openInChrome(url) {
     if (process.platform === 'win32') {
-        exec(`start "" chrome "${url}"`, error => {
+        exec(`start "" chrome "${url}"`, { windowsHide: true }, error => {
             if (error) {
                 console.error(`Could not open Chrome: ${error.message}`);
             }
