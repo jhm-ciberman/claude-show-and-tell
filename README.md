@@ -34,7 +34,7 @@ Then run `/reload-plugins` in any open session.
 
 - The mod gives Claude a `show` tool: a title and some images, with an optional description and layout, or a question for you to answer.
 - The first time a session shows something, the mod starts the board server if it is not running and opens the session's page in Chrome. Sessions that never show anything never open a tab.
-- From then on, the session also sends what it does on its own: each image it reads, whether it is working or waiting for you, and when it ends.
+- From then on, the session also sends what it does on its own: each image it reads, whether it is working or waiting for you, and when it ends. The images it read before the board opened come too, up to the newest 30.
 - A question stays on top until you answer it on the board or dismiss it. When you answer in the terminal instead, Claude closes it with its `close_questions` tool. Click **Notify me** in the top bar to also get a desktop notification when Claude asks while you are in another window.
 - Each call to `show` is one report, and the board keeps its images together as one card. A report picks its layout: a plain grid, a side-by-side comparison, a packed collage, a before-and-after slider, or numbered variations.
 

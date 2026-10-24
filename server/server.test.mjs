@@ -146,6 +146,19 @@ test('groups reads into looks split by what the agent changed in between', async
     assert.equal(looks.d.look, 2, 'no change keeps the look');
 });
 
+test('keeps the time a session says it read an image, but never a time ahead of now', async () => {
+    const board = await startBoard();
+    const earlier = Date.now() - 60_000;
+
+    await post(board, '/events', read('a', { at: earlier }));
+    await post(board, '/events', read('b', { at: Date.now() + 60_000 }));
+    await post(board, '/events', read('a', { at: earlier + 1000 }));
+
+    const times = Object.fromEntries((await events(board)).map(event => [event.title, event.at]));
+    assert.equal(times.a, earlier + 1000, 'an image read again takes the time of the new read');
+    assert.ok(times.b <= Date.now());
+});
+
 test('keeps the newest 100 reads, and at least 10 of each agent', async () => {
     const now = Date.now();
     const seen = (id, agent, at) => ({

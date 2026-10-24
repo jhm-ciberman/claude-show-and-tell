@@ -330,6 +330,15 @@ function hashImage(base64) {
     return createHash('sha1').update(base64).digest('hex');
 }
 
+/**
+ * When the event happened: the time the session gives for something it did by itself, unless it is ahead of now.
+ */
+function eventTime(body) {
+    const now = Date.now();
+
+    return body.auto === true && Number.isFinite(body.at) && body.at <= now ? body.at : now;
+}
+
 function readChanges(value) {
     const count = key => (Number.isInteger(value?.[key]) && value[key] > 0 ? value[key] : 0);
     const changes = { edits: count('edits'), commands: count('commands'), other: count('other') };
@@ -367,14 +376,14 @@ async function countRereading(session, body, place) {
 
     const [event] = session.events.splice(index, 1);
     event.readCount = (event.readCount ?? 1) + 1;
-    event.at = Date.now();
+    event.at = eventTime(body);
 
     if (event.look !== place.look) {
         Object.assign(event, place);
     }
 
     session.events.push(event);
-    session.updatedAt = event.at;
+    session.updatedAt = Math.max(session.updatedAt, event.at);
     await saveEvents(session);
     await saveSession(session);
     broadcast('event', { session: summary(session), event });
@@ -463,7 +472,7 @@ async function addEvent(id, body) {
 
     const event = {
         id: `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`,
-        at: Date.now(),
+        at: eventTime(body),
         kind,
         title: String(body.title ?? ''),
         text: String(body.text ?? ''),
@@ -478,7 +487,7 @@ async function addEvent(id, body) {
     };
 
     session.events.push(event);
-    session.updatedAt = event.at;
+    session.updatedAt = Math.max(session.updatedAt, event.at);
     session.status = 'working';
 
     await refreshTitle(session);

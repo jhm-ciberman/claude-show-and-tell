@@ -361,13 +361,51 @@ describe('compactions', () => {
 })
 
 describe('what Claude sees', () => {
-    test('stays off the board until the session shows something', async ($, on) => {
+    test('waits until the session shows something, then arrives in the order read', async ($, on) => {
         const host = fakeHost(on)
         await startSession($)
 
         await $.tool.call({ tool: 'Read', file_path: 'C:\\refs\\fence.png' })
+        await $.tool.call({ tool: 'Read', file_path: 'C:\\refs\\gate.png' })
 
         expect(host.posts('/events')).toHaveLength(0)
+
+        await $.tool.call({ tool: TOOL, title: 'Start', images: ['C:\\shots\\a.png'] })
+
+        const seen = host.posts('/events').filter(one => one.body?.kind === 'seen')
+        expect(seen.map(one => one.body?.title)).toEqual(['fence.png', 'gate.png'])
+        expect(seen[0]?.body).toMatchObject({ auto: true, at: expect.any(Number), images: [{ name: 'fence.png', base64: PNG }] })
+    })
+
+    test('read before /show-and-tell arrives once the board opens', async ($, on) => {
+        const host = fakeHost(on)
+        await startSession($)
+
+        await $.tool.call({ tool: 'Read', file_path: 'C:\\refs\\fence.png' })
+        await $.command.run({
+            command: 'show-and-tell',
+            args: '',
+            origin: { kind: 'composer' },
+            presentation: { isFullscreen: true, columns: 120 },
+        })
+
+        const seen = host.posts('/events').filter(one => one.body?.kind === 'seen')
+        expect(seen.map(one => one.body?.title)).toEqual(['fence.png'])
+    })
+
+    test('keeps only the newest 30 reads made before the board follows the session', async ($, on) => {
+        const host = fakeHost(on)
+        await startSession($)
+
+        for (let index = 0; index < 35; index++) {
+            await $.tool.call({ tool: 'Read', file_path: `C:\\refs\\${index}.png` })
+        }
+
+        await $.tool.call({ tool: TOOL, title: 'Start', images: ['C:\\shots\\a.png'] })
+
+        const seen = host.posts('/events').filter(one => one.body?.kind === 'seen')
+        expect(seen).toHaveLength(30)
+        expect(seen[0]?.body?.title).toBe('5.png')
     })
 
     test('sends each image the session reads once it has shown something', async ($, on) => {

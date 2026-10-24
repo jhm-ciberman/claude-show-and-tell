@@ -21,6 +21,7 @@ const PROBE_TIMEOUT_MS = 1000
 const AUTO_TIMEOUT_MS = 2000
 const START_TIMEOUT_MS = 8000
 const INBOX_EVERY_MS = 2000
+const HELD_READS_KEPT = 30
 
 const DESCRIPTION = `Show images to the user on their live image board: a Chrome tab that follows this session. The user cannot watch you work and does not want to read here: the board is for pictures, and you talk in chat.
 
@@ -130,6 +131,7 @@ type EventBody = {
     agent: string | null
     images: Image[]
     changes?: Changes
+    at: number
 }
 
 type BoardResponse = {
@@ -163,6 +165,9 @@ let environment: Promise<Environment> | undefined
 
 // Whether each session has shown something on the board; its own events wait until it has.
 const activity = new Map<string, boolean>()
+
+// The images each session read before the board followed it, oldest first, sent once it does.
+const heldReads = new Map<string, EventBody[]>()
 
 const transcripts = new Map<string, string | null>()
 
@@ -454,6 +459,40 @@ async function postAuto($: EngineInterface, path: string, build: () => object | 
     }
 }
 
+/**
+ * Sends an image the session read to the board, or holds it until the board follows the session.
+ * Never throws.
+ */
+async function postSeen($: EngineInterface, build: () => Promise<EventBody>): Promise<void> {
+    try {
+        const sessionId = await $.session.id()
+        const env = await getEnvironment($)
+        const body = await build()
+
+        if (await isFollowed($, env, sessionId)) {
+            await postAuto($, '/events', () => body, sessionId)
+
+            return
+        }
+
+        heldReads.set(sessionId, [...(heldReads.get(sessionId) ?? []), body].slice(-HELD_READS_KEPT))
+    } catch {
+        // The board is a side channel: a failure never reaches the session.
+    }
+}
+
+/**
+ * Sends the images the session read before the board followed it, in the order read.
+ */
+async function sendHeldReads($: EngineInterface, sessionId: string): Promise<void> {
+    const held = heldReads.get(sessionId) ?? []
+    heldReads.delete(sessionId)
+
+    for (const body of held) {
+        await postAuto($, '/events', () => body, sessionId)
+    }
+}
+
 function postStatus($: EngineInterface, status: Status, sessionId?: string) {
     return postAuto($, '/status', () => ({ status }), sessionId)
 }
@@ -596,6 +635,7 @@ export const register: Register = on => {
 
             activity.set(sessionId, true)
             await remember($, response.text)
+            await sendHeldReads($, sessionId)
 
             return { text: 'Opened the board in Chrome.' }
         } catch (error) {
@@ -682,6 +722,7 @@ export const register: Register = on => {
 
             activity.set(sessionId, true)
             await remember($, response.text)
+            await sendHeldReads($, sessionId)
             const { session } = JSON.parse(response.text) as BoardResponse
             const lines = [`Shown ${images.length} image(s) on the board.`]
 
@@ -745,13 +786,14 @@ export const register: Register = on => {
 
         const changes = takeChanges(e.agentId ?? '')
 
-        // A file over the read limit throws inside postAuto and is left off the board.
-        await postAuto($, '/events', async (): Promise<EventBody> => ({
+        // A file over the read limit throws inside postSeen and is left off the board.
+        await postSeen($, async () => ({
             kind: 'seen',
             title: baseName(e.file_path),
             agent: await agentLabel($, e.agentId),
             images: [{ name: baseName(e.file_path), base64: (await $.fs.read(e.file_path, { as: 'bytes' })).base64 }],
             changes,
+            at: await $.clock.now(),
         }))
 
         return ran
