@@ -17,7 +17,7 @@ The board tracks two things for each report, and Claude learns both each time it
 - **New or seen**: a new report has a dot. It counts as seen once it stays in view for two seconds while the board is the window in front, or once you open it. Many unseen reports tell Claude you are away, so it sends fewer, grouped ones.
 - **In review or reviewed**: the reports in review are the ones you are still comparing. Marking one **reviewed** puts it away under the Reviewed tab (and you can bring it back).
 
-The session tabs on top can be dragged into the same order as your terminal tabs. The board remembers the order.
+The session tabs on top are the sessions still running. They can be dragged into the same order as your terminal tabs, and the board remembers the order. Sessions that stopped move to the **History** column on the left, grouped by day.
 
 ## Install
 

@@ -48,6 +48,7 @@
                 </div>
                 <div class="hidden text-sm font-black tracking-tight sm:block">Show and Tell</div>
             </div>
+            <div id="history-toggle" class="shrink-0 self-center pb-2"></div>
             <nav id="sessions" class="-mb-px flex min-w-0 flex-1 items-end gap-0.5 overflow-x-auto overflow-y-hidden"></nav>
             <div id="notify-toggle" class="shrink-0 self-center pb-2"></div>
             <div id="rail-toggle" class="shrink-0 self-center pb-2"></div>
@@ -55,6 +56,8 @@
         </div>
 
         <div class="flex min-h-0 flex-1">
+            <aside id="history" class="hidden w-80 max-w-[85vw] shrink-0 flex-col border-r border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900"></aside>
+
             <main id="main" class="min-w-0 flex-1 overflow-y-auto"></main>
 
             <aside id="seen" class="hidden w-[30rem] shrink-0 flex-col border-l border-slate-200 bg-white xl:flex dark:border-slate-800 dark:bg-slate-900"></aside>
@@ -158,6 +161,7 @@
             sessionOrder: storageGetJson('sessionOrder') ?? [],
             // The session tab being dragged, by id; the tabs hold still until it is dropped.
             draggedSession: null,
+            isHistoryOpen: storageGet('historyOpen') === 'true',
         };
 
         function storageGet(key) {
@@ -396,23 +400,121 @@
 
             const list = orderedSessions();
             const live = list.filter(isLive);
-            const asleep = list.filter(session => !isLive(session));
+            // An inactive session keeps a tab only while it is open; the rest wait in the history.
+            const asleep = list.filter(session => !isLive(session) && session.id === state.current?.id);
             const nav = document.getElementById('sessions');
 
             nav.innerHTML = list.length === 0
                 ? '<p class="px-2 pb-2.5 text-sm text-slate-500">No session has shown anything yet.</p>'
-                : [
-                    live.map(renderSessionTab).join(''),
-                    asleep.length && live.length ? '<span class="mx-1 mb-2.5 h-5 w-px shrink-0 bg-slate-300 dark:bg-slate-700"></span>' : '',
-                    asleep.map(renderSessionTab).join(''),
-                ].join('');
+                : live.length === 0 && asleep.length === 0
+                    ? '<p class="px-2 pb-2.5 text-sm text-slate-500">No session is running.</p>'
+                    : [
+                        live.map(renderSessionTab).join(''),
+                        asleep.length && live.length ? '<span class="mx-1 mb-2.5 h-5 w-px shrink-0 bg-slate-300 dark:bg-slate-700"></span>' : '',
+                        asleep.map(renderSessionTab).join(''),
+                    ].join('');
 
+            renderHistory(list.filter(session => !isLive(session)));
             updateTitle();
             window.lucide?.createIcons();
         }
 
+        function setHistoryOpen(isOpen) {
+            state.isHistoryOpen = isOpen;
+            storageSet('historyOpen', String(isOpen));
+            renderSessions();
+        }
+
         /**
-         * One session as a tab of the top bar; the inactive ones come last, faded.
+         * The day a session last did something, as a heading of the history.
+         */
+        function dayLabel(at) {
+            const day = new Date(at);
+            day.setHours(0, 0, 0, 0);
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            const days = Math.round((today - day) / 86_400_000);
+
+            if (days === 0) return 'Today';
+            if (days === 1) return 'Yesterday';
+
+            return day.toLocaleDateString([], { weekday: 'long', month: 'short', day: 'numeric' });
+        }
+
+        /**
+         * The left column of the sessions that stopped, newest first, under a heading per day, and its button in
+         * the top bar.
+         */
+        function renderHistory(sessions) {
+            const toggle = document.getElementById('history-toggle');
+            const column = document.getElementById('history');
+            const looks = state.isHistoryOpen
+                ? 'bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-200'
+                : 'text-slate-500 hover:bg-slate-100 hover:text-slate-800 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-200';
+
+            toggle.innerHTML = sessions.length || state.isHistoryOpen
+                ? `
+                    <button type="button" data-history title="${state.isHistoryOpen ? 'Hide' : 'Show'} the sessions that stopped" class="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-extrabold transition ${looks}">
+                        ${icon('history', 'h-4 w-4')} History
+                        ${sessions.length ? `<span class="rounded-full bg-slate-300 px-1.5 text-[10px] font-black text-slate-700 dark:bg-slate-700 dark:text-slate-200">${sessions.length}</span>` : ''}
+                    </button>
+                `
+                : '';
+
+            column.classList.toggle('hidden', !state.isHistoryOpen);
+            column.classList.toggle('flex', state.isHistoryOpen);
+
+            if (!state.isHistoryOpen) {
+                return;
+            }
+
+            const days = [];
+
+            for (const session of [...sessions].sort((a, b) => b.updatedAt - a.updatedAt)) {
+                const label = dayLabel(session.updatedAt);
+                const last = days.at(-1);
+
+                if (last?.label === label) {
+                    last.sessions.push(session);
+                } else {
+                    days.push({ label, sessions: [session] });
+                }
+            }
+
+            column.innerHTML = `
+                <div class="flex items-center gap-2 border-b border-slate-100 px-4 py-3 dark:border-slate-800">
+                    ${icon('history', 'h-4 w-4 text-slate-400')}
+                    <div class="flex-1 text-xs font-extrabold uppercase tracking-wider text-slate-400">History</div>
+                    <button type="button" data-history title="Hide the history" class="rounded-lg p-1 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-800 dark:hover:text-slate-200">${icon('x', 'h-4 w-4')}</button>
+                </div>
+                <div class="flex-1 overflow-y-auto p-2">
+                    ${days.length === 0 ? '<p class="px-2 py-3 text-sm text-slate-500">Sessions that stop show up here.</p>' : ''}
+                    ${days.map(day => `
+                        <h3 class="px-2 pb-1 pt-3 text-[11px] font-extrabold uppercase tracking-wider text-slate-400">${escapeHtml(day.label)}</h3>
+                        ${day.sessions.map(renderHistoryRow).join('')}
+                    `).join('')}
+                </div>
+            `;
+        }
+
+        function renderHistoryRow(session) {
+            const isCurrent = session.id === state.current?.id;
+            const folder = session.cwd.split(/[\\/]/).filter(Boolean).at(-1) ?? '';
+            const details = [folder, images(session.imageCount), clock(session.updatedAt)].filter(Boolean).map(escapeHtml).join(' · ');
+
+            return `
+                <a href="/s/${encodeURIComponent(session.id)}" data-id="${escapeHtml(session.id)}" draggable="false" title="${escapeHtml(session.title)}" class="session block rounded-lg px-2 py-1.5 transition ${isCurrent ? 'bg-clay-50 ring-1 ring-clay-400/50 dark:bg-clay-500/10' : 'hover:bg-slate-100 dark:hover:bg-slate-800'}">
+                    <span class="flex items-center gap-1.5">
+                        <span class="truncate text-sm font-extrabold ${isCurrent ? 'text-slate-900 dark:text-white' : 'text-slate-700 dark:text-slate-200'}">${escapeHtml(session.title)}</span>
+                        ${session.isKept ? `<span title="Protected: auto cleanup is off" class="shrink-0 text-emerald-500">${icon('shield-check', 'h-3.5 w-3.5')}</span>` : ''}
+                    </span>
+                    <span class="block truncate text-xs font-semibold text-slate-400">${details}</span>
+                </a>
+            `;
+        }
+
+        /**
+         * One session as a tab of the top bar; an inactive one that is open comes last, faded.
          */
         function renderSessionTab(session) {
             const isCurrent = session.id === state.current?.id;
@@ -1198,7 +1300,7 @@
                 main.innerHTML = !state.isLoaded
                     ? renderEmpty('Loading…', 'Fetching the sessions from the board.')
                     : state.sessions.size
-                        ? renderEmpty('Pick a session', 'Choose a session on the left to see what Claude is making.')
+                        ? renderEmpty('Pick a session', 'Choose a session above, or one that stopped in the history.')
                         : renderEmpty('Nothing to show yet', 'A session appears here the first time Claude shows you an image.');
                 renderSeen([]);
                 updateTitle();
@@ -1967,7 +2069,7 @@
                 return;
             }
 
-            const target = event.target.closest('[data-seen], [data-keep], [data-choose], [data-answer], [data-step], [data-step-to], [data-open], [data-close], [data-seen-agent], [data-seen-back], [data-finished], [data-notify], [data-rail], [data-area-toggle], [data-area-clear], [data-review-all], [data-review], [data-review-close], [data-mark-reviewed], [data-tab], [data-report]');
+            const target = event.target.closest('[data-history], [data-seen], [data-keep], [data-choose], [data-answer], [data-step], [data-step-to], [data-open], [data-close], [data-seen-agent], [data-seen-back], [data-finished], [data-notify], [data-rail], [data-area-toggle], [data-area-clear], [data-review-all], [data-review], [data-review-close], [data-mark-reviewed], [data-tab], [data-report]');
 
             if (!target) {
                 return;
@@ -1988,6 +2090,12 @@
 
             if (target.hasAttribute('data-notify')) {
                 Notification.requestPermission().then(renderNotifyToggle);
+
+                return;
+            }
+
+            if (target.hasAttribute('data-history')) {
+                setHistoryOpen(!state.isHistoryOpen);
 
                 return;
             }
