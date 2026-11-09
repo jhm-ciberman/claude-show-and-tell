@@ -1,5 +1,5 @@
 import { spawn } from 'node:child_process';
-import { mkdir, mkdtemp, readdir, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
@@ -215,6 +215,30 @@ test('hands the messages to the session once, with the board state', async () =>
     assert.deepEqual(first.messages.map(message => message.text), ['About "Sofa" (sofa.png): too saturated']);
     assert.equal(first.session.unseenCount, 1);
     assert.deepEqual(second.messages, []);
+});
+
+test('saves a drawing with the session and tells Claude where it is', async () => {
+    const board = await startBoard();
+    const { eventId } = await post(board, '/events', { kind: 'progress', title: 'Sofa', images: [image('sofa')] });
+    const png = Buffer.from('drawn picture');
+
+    await post(board, '/drawings', { eventId, imageIndex: 0, text: 'move this', drawn: `data:image/png;base64,${png.toString('base64')}` });
+    const [message] = (await post(board, '/inbox')).messages;
+
+    const [first, second] = message.text.split('\n');
+    assert.equal(first, 'About "Sofa" (sofa.png), with a drawing on the image: move this');
+    const path = second.replace('Drawn: ', '');
+    assert.ok(path.startsWith(join(board.sessionDir, 'crops')));
+    assert.deepEqual(await readFile(path), png);
+});
+
+test('refuses a drawing with no note', async () => {
+    const board = await startBoard();
+    const { eventId } = await post(board, '/events', { kind: 'progress', title: 'Sofa', images: [image('sofa')] });
+
+    const answer = await post(board, '/drawings', { eventId, imageIndex: 0, text: '  ', drawn: 'data:image/png;base64,AAAA' });
+
+    assert.equal(answer.error, 'Nothing to send');
 });
 
 test('names the newest picture shown as the session thumbnail, or the newest read when nothing was shown', async () => {

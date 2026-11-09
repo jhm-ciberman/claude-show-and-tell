@@ -681,6 +681,31 @@ async function queueAreaQuestion(id, body) {
     ].join('\n'));
 }
 
+/**
+ * Queues a note about a drawing made on an image: the image with the drawing on it, saved with the session (so it
+ * goes when the session goes) for Claude to open.
+ */
+async function queueDrawingNote(id, body) {
+    const session = sessions.get(id);
+    const event = session?.events.find(one => one.id === body.eventId);
+    const image = event?.images[body.imageIndex];
+    const text = String(body.text ?? '').trim();
+
+    if (!image || !text || typeof body.drawn !== 'string') {
+        return null;
+    }
+
+    const dir = join(sessionDir(id), 'crops');
+    const drawn = join(dir, `${Date.now()}-${Math.random().toString(36).slice(2, 6)}-drawn.png`);
+    await mkdir(dir, { recursive: true });
+    await writeFile(drawn, decodePng(body.drawn));
+
+    return queueText(session, [
+        `About "${event.title}" (${image.name}), with a drawing on the image: ${text}`,
+        `Drawn: ${drawn}`,
+    ].join('\n'));
+}
+
 async function queueText(session, text) {
     const message = { id: `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`, at: Date.now(), text };
     session.inbox.push(message);
@@ -994,6 +1019,13 @@ async function handle(request, response) {
 
     if (method === 'POST' && sessionId && child === 'areas') {
         const message = await queueAreaQuestion(sessionId, JSON.parse(await readBody(request)));
+        sendJson(response, message ? 201 : 422, message ? { message } : { error: 'Nothing to send' });
+
+        return;
+    }
+
+    if (method === 'POST' && sessionId && child === 'drawings') {
+        const message = await queueDrawingNote(sessionId, JSON.parse(await readBody(request)));
         sendJson(response, message ? 201 : 422, message ? { message } : { error: 'Nothing to send' });
 
         return;

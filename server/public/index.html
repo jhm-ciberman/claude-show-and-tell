@@ -91,6 +91,25 @@
                     <i data-lucide="x" class="h-4 w-4"></i>
                 </button>
             </div>
+            <div id="draw-tools" class="space-y-2">
+                <div class="flex gap-2">
+                    <button type="button" id="draw-toggle" data-draw-toggle class="inline-flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-white/10 px-4 py-2.5 text-sm font-extrabold transition hover:bg-white/20">
+                        <i data-lucide="pen-line" class="h-4 w-4"></i> <span>Draw</span>
+                    </button>
+                    <button type="button" id="draw-undo" data-draw-undo title="Undo the last line (Ctrl+Z)" class="hidden rounded-xl bg-white/10 px-3 transition hover:bg-white/20">
+                        <i data-lucide="undo-2" class="h-4 w-4"></i>
+                    </button>
+                    <button type="button" id="draw-clear" data-draw-clear title="Clear the drawing" class="hidden rounded-xl bg-white/10 px-3 transition hover:bg-white/20">
+                        <i data-lucide="x" class="h-4 w-4"></i>
+                    </button>
+                </div>
+                <div id="draw-colors" class="hidden items-center justify-center gap-3">
+                    <button type="button" data-draw-color="#ef4444" title="Red" class="h-6 w-6 rounded-full ring-white transition" style="background:#ef4444"></button>
+                    <button type="button" data-draw-color="#facc15" title="Yellow" class="h-6 w-6 rounded-full ring-white transition" style="background:#facc15"></button>
+                    <button type="button" data-draw-color="#22c55e" title="Green" class="h-6 w-6 rounded-full ring-white transition" style="background:#22c55e"></button>
+                    <button type="button" data-draw-color="#3b82f6" title="Blue" class="h-6 w-6 rounded-full ring-white transition" style="background:#3b82f6"></button>
+                </div>
+            </div>
             <form id="comment-form" class="space-y-2">
                 <label for="comment-input" class="text-[11px] font-extrabold uppercase tracking-wider text-white/50">Tell Claude about this image</label>
                 <textarea id="comment-input" data-send-on-enter placeholder="Write a note about this image…" class="block max-h-[200px] min-h-[5.5rem] w-full resize-none rounded-xl border-0 bg-white/10 px-4 py-2.5 text-sm font-semibold text-white placeholder-white/40 outline-none ring-1 ring-white/15 [field-sizing:content] focus:ring-2 focus:ring-clay-400"></textarea>
@@ -105,6 +124,7 @@
         <div data-close class="relative flex min-h-0 min-w-0 flex-1 flex-col items-center justify-center gap-4 p-6">
             <div id="lightbox-stage" class="relative min-h-0 w-full flex-1 cursor-zoom-in overflow-hidden">
                 <img id="lightbox-image" draggable="false" class="h-full w-full origin-top-left select-none object-contain drop-shadow-2xl" alt="">
+                <canvas id="draw-layer" class="pointer-events-none absolute inset-0 h-full w-full"></canvas>
                 <span id="lightbox-zoom" class="pointer-events-none absolute bottom-3 left-3 hidden rounded-full bg-black/60 px-3 py-1 text-xs font-black text-white"></span>
                 <div id="area-box" class="pointer-events-none absolute hidden rounded-sm border-2 border-clay-400 bg-clay-400/15 shadow-[0_0_0_9999px_rgba(0,0,0,0.35)]"></div>
             </div>
@@ -1585,6 +1605,7 @@
             document.getElementById('lightbox-image').src = image.url;
             resetZoom();
             resetArea();
+            resetMarker();
             document.getElementById('lightbox-title').textContent = event.title;
             document.getElementById('lightbox-meta').innerHTML = meta.map(part => `<span>${part}</span>`).join('<span>·</span>');
             document.getElementById('lightbox-note-text').textContent = event.text;
@@ -1592,6 +1613,7 @@
             document.getElementById('lightbox-download').href = image.url;
             document.getElementById('lightbox-download').download = image.name;
             document.getElementById('comment-form').classList.toggle('hidden', !isOpen(state.current));
+            document.getElementById('draw-tools').classList.toggle('hidden', !isOpen(state.current));
             document.getElementById('lightbox').classList.replace('hidden', 'flex');
             updatePick();
             renderStrip();
@@ -1649,14 +1671,19 @@
             image.style.imageRendering = pixels >= 2 ? 'pixelated' : 'auto';
             label.textContent = `${Math.round(pixels * 100)}%`;
             label.classList.toggle('hidden', zoom.scale === 1);
-            document.getElementById('lightbox-stage').style.cursor = area.isOn
+            document.getElementById('lightbox-stage').style.cursor = area.isOn || marker.isOn
                 ? 'crosshair'
                 : zoom.scale > 1 ? (zoom.drag ? 'grabbing' : 'grab') : 'zoom-in';
             drawAreaBox();
+            drawMarkerLayer();
         }
 
         // An area marked on the image to ask about, in the image's own pixels so it stays put through zoom and pan.
         const area = { isOn: false, box: null, start: null };
+
+        // Lines drawn on the image, in the image's own pixels so they stay put through zoom and pan.
+        const marker = { isOn: false, color: '#ef4444', strokes: [], stroke: null };
+        const MARKER_WIDTH = 6;
 
         function imageMetrics() {
             const image = document.getElementById('lightbox-image');
@@ -1705,19 +1732,94 @@
             element.classList.remove('hidden');
         }
 
-        function updateAreaControls() {
-            const toggle = document.getElementById('area-toggle');
-            toggle.classList.toggle('bg-clay-500', area.isOn);
-            toggle.classList.toggle('bg-white/10', !area.isOn);
-            toggle.querySelector('span').textContent = area.isOn ? 'Drag over the image…' : 'Ask about an area';
-            document.getElementById('comment-input').placeholder = area.box ? 'Ask about the marked area…' : 'Write a note about this image…';
+        /**
+         * Paints the drawn lines on a canvas whose coordinates are the image's own pixels.
+         */
+        function paintStrokes(context) {
+            context.lineCap = 'round';
+            context.lineJoin = 'round';
+
+            for (const { color, width, points } of marker.strokes) {
+                const [[startX, startY], ...rest] = points;
+                context.strokeStyle = color;
+                context.lineWidth = width;
+                context.beginPath();
+                context.moveTo(startX, startY);
+
+                // A click with no movement still leaves a dot.
+                for (const [x, y] of rest.length ? rest : [[startX + 0.01, startY]]) {
+                    context.lineTo(x, y);
+                }
+
+                context.stroke();
+            }
+        }
+
+        /**
+         * Redraws the lines over the image on screen, at the viewer's current zoom and pan.
+         */
+        function drawMarkerLayer() {
+            const layer = document.getElementById('draw-layer');
+            const { width, height } = layer.getBoundingClientRect();
+            const ratio = window.devicePixelRatio;
+            const pixelWidth = Math.round(width * ratio);
+            const pixelHeight = Math.round(height * ratio);
+
+            if (layer.width !== pixelWidth || layer.height !== pixelHeight) {
+                layer.width = pixelWidth;
+                layer.height = pixelHeight;
+            }
+
+            const context = layer.getContext('2d');
+            const { fit, offsetX, offsetY } = imageMetrics();
+            const scale = fit * zoom.scale * ratio;
+            context.setTransform(1, 0, 0, 1, 0, 0);
+            context.clearRect(0, 0, pixelWidth, pixelHeight);
+            context.setTransform(scale, 0, 0, scale, (offsetX * zoom.scale + zoom.x) * ratio, (offsetY * zoom.scale + zoom.y) * ratio);
+            paintStrokes(context);
+        }
+
+        function updateToolControls() {
+            const areaToggle = document.getElementById('area-toggle');
+            areaToggle.classList.toggle('bg-clay-500', area.isOn);
+            areaToggle.classList.toggle('bg-white/10', !area.isOn);
+            areaToggle.querySelector('span').textContent = area.isOn ? 'Drag over the image…' : 'Ask about an area';
             document.getElementById('area-clear').classList.toggle('hidden', !area.box);
+
+            const drawToggle = document.getElementById('draw-toggle');
+            const hasStrokes = marker.strokes.length > 0;
+            const colors = document.getElementById('draw-colors');
+            drawToggle.classList.toggle('bg-clay-500', marker.isOn);
+            drawToggle.classList.toggle('bg-white/10', !marker.isOn);
+            drawToggle.querySelector('span').textContent = marker.isOn ? 'Stop drawing' : 'Draw';
+            document.getElementById('draw-undo').classList.toggle('hidden', !hasStrokes);
+            document.getElementById('draw-clear').classList.toggle('hidden', !hasStrokes);
+            colors.classList.toggle('hidden', !marker.isOn);
+            colors.classList.toggle('flex', marker.isOn);
+
+            for (const swatch of colors.children) {
+                swatch.classList.toggle('ring-2', swatch.dataset.drawColor === marker.color);
+            }
+
+            document.getElementById('comment-input').placeholder = area.box
+                ? 'Ask about the marked area…'
+                : hasStrokes ? 'Tell Claude about your drawing…' : 'Write a note about this image…';
             applyZoom();
         }
 
         function resetArea() {
             Object.assign(area, { isOn: false, box: null, start: null });
-            updateAreaControls();
+            updateToolControls();
+        }
+
+        function resetMarker() {
+            Object.assign(marker, { isOn: false, strokes: [], stroke: null });
+            updateToolControls();
+        }
+
+        function undoStroke() {
+            marker.strokes.pop();
+            updateToolControls();
         }
 
         function canvasOf(width, height) {
@@ -1740,11 +1842,15 @@
                 y1: Math.round(area.box.y1),
             };
             const crop = canvasOf(Math.max(1, box.x1 - box.x0), Math.max(1, box.y1 - box.y0));
-            crop.getContext('2d').drawImage(image, box.x0, box.y0, crop.width, crop.height, 0, 0, crop.width, crop.height);
+            const cropContext = crop.getContext('2d');
+            cropContext.drawImage(image, box.x0, box.y0, crop.width, crop.height, 0, 0, crop.width, crop.height);
+            cropContext.translate(-box.x0, -box.y0);
+            paintStrokes(cropContext);
 
             const marked = canvasOf(width, height);
             const context = marked.getContext('2d');
             context.drawImage(image, 0, 0);
+            paintStrokes(context);
             context.strokeStyle = '#d97757';
             context.lineWidth = Math.max(3, width / 250);
             context.strokeRect(box.x0, box.y0, box.x1 - box.x0, box.y1 - box.y0);
@@ -1756,6 +1862,24 @@
                 box: { ...box, width, height },
                 crop: crop.toDataURL('image/png'),
                 marked: marked.toDataURL('image/png'),
+            });
+        }
+
+        /**
+         * Sends a note about the drawing, with the whole image and the drawing on it.
+         */
+        async function sendDrawing(item, text) {
+            const { image, width, height } = imageMetrics();
+            const drawn = canvasOf(width, height);
+            const context = drawn.getContext('2d');
+            context.drawImage(image, 0, 0);
+            paintStrokes(context);
+
+            return post('/drawings', {
+                eventId: item.event.id,
+                imageIndex: item.index,
+                text,
+                drawn: drawn.toDataURL('image/png'),
             });
         }
 
@@ -1812,6 +1936,10 @@
 
         // A double click shows the image at its own pixels, the size to read small text at, or fits it back.
         stage.addEventListener('dblclick', event => {
+            if (marker.isOn) {
+                return;
+            }
+
             if (zoom.scale > 1) {
                 resetZoom();
             } else {
@@ -1819,8 +1947,27 @@
             }
         });
 
+        // The lines and the marked area follow the image when the window resizes.
+        new ResizeObserver(() => {
+            if (isLightboxOpen()) {
+                applyZoom();
+            }
+        }).observe(stage);
+
         stage.addEventListener('pointerdown', event => {
-            if (area.isOn) {
+            if (marker.isOn) {
+                if (event.button === 0) {
+                    // The line keeps the width it has on screen now, so zooming in draws finer lines.
+                    marker.stroke = {
+                        color: marker.color,
+                        width: MARKER_WIDTH / (fitScale() * zoom.scale),
+                        points: [stageToImage(...stagePoint(event))],
+                    };
+                    marker.strokes.push(marker.stroke);
+                    stage.setPointerCapture(event.pointerId);
+                    drawMarkerLayer();
+                }
+            } else if (area.isOn) {
                 // While marking, a drag draws the area instead of panning.
                 area.start = stageToImage(...stagePoint(event));
                 area.box = null;
@@ -1833,7 +1980,10 @@
         });
 
         stage.addEventListener('pointermove', event => {
-            if (area.start) {
+            if (marker.stroke) {
+                marker.stroke.points.push(stageToImage(...stagePoint(event)));
+                drawMarkerLayer();
+            } else if (area.start) {
                 const [x, y] = stageToImage(...stagePoint(event));
                 const [startX, startY] = area.start;
                 area.box = { x0: Math.min(startX, x), y0: Math.min(startY, y), x1: Math.max(startX, x), y1: Math.max(startY, y) };
@@ -1847,12 +1997,19 @@
         });
 
         stage.addEventListener('pointerup', () => {
+            if (marker.stroke) {
+                marker.stroke = null;
+                updateToolControls();
+
+                return;
+            }
+
             if (area.start) {
                 const isTiny = !area.box || area.box.x1 - area.box.x0 < 4 || area.box.y1 - area.box.y0 < 4;
                 area.start = null;
                 area.isOn = false;
                 area.box = isTiny ? null : area.box;
-                updateAreaControls();
+                updateToolControls();
 
                 if (area.box) {
                     document.getElementById('comment-input').focus();
@@ -1903,6 +2060,7 @@
             document.getElementById('lightbox').classList.replace('flex', 'hidden');
             document.getElementById('comment-input').value = '';
             resetArea();
+            resetMarker();
         }
 
         function isLightboxOpen() {
@@ -2074,7 +2232,7 @@
                 return;
             }
 
-            const target = event.target.closest('[data-history], [data-seen], [data-keep], [data-choose], [data-answer], [data-step], [data-step-to], [data-open], [data-close], [data-seen-agent], [data-seen-back], [data-finished], [data-notify], [data-rail], [data-area-toggle], [data-area-clear], [data-review-all], [data-review], [data-review-close], [data-mark-reviewed], [data-tab], [data-report]');
+            const target = event.target.closest('[data-history], [data-seen], [data-keep], [data-choose], [data-answer], [data-step], [data-step-to], [data-open], [data-close], [data-seen-agent], [data-seen-back], [data-finished], [data-notify], [data-rail], [data-area-toggle], [data-area-clear], [data-draw-toggle], [data-draw-undo], [data-draw-clear], [data-draw-color], [data-review-all], [data-review], [data-review-close], [data-mark-reviewed], [data-tab], [data-report]');
 
             if (!target) {
                 return;
@@ -2082,13 +2240,42 @@
 
             if (target.hasAttribute('data-area-toggle')) {
                 area.isOn = !area.isOn;
-                updateAreaControls();
+                marker.isOn = marker.isOn && !area.isOn;
+                updateToolControls();
 
                 return;
             }
 
             if (target.hasAttribute('data-area-clear')) {
                 resetArea();
+
+                return;
+            }
+
+            if (target.hasAttribute('data-draw-toggle')) {
+                marker.isOn = !marker.isOn;
+                area.isOn = area.isOn && !marker.isOn;
+                updateToolControls();
+
+                return;
+            }
+
+            if (target.hasAttribute('data-draw-undo')) {
+                undoStroke();
+
+                return;
+            }
+
+            if (target.hasAttribute('data-draw-clear')) {
+                marker.strokes = [];
+                updateToolControls();
+
+                return;
+            }
+
+            if (target.dataset.drawColor) {
+                marker.color = target.dataset.drawColor;
+                updateToolControls();
 
                 return;
             }
@@ -2198,14 +2385,18 @@
                 }
 
                 const isAboutArea = area.box !== null;
+                const hasDrawing = marker.strokes.length > 0;
                 const isSent = isAboutArea
                     ? await sendAreaQuestion(item, input.value)
-                    : await post('/messages', { eventId: item.event.id, imageIndex: item.index, text: input.value });
+                    : hasDrawing
+                        ? await sendDrawing(item, input.value)
+                        : await post('/messages', { eventId: item.event.id, imageIndex: item.index, text: input.value });
 
                 if (isSent) {
                     input.value = '';
                     resetArea();
-                    toast(isAboutArea ? 'Question about the area sent' : 'Note sent', 'send');
+                    resetMarker();
+                    toast(isAboutArea ? 'Question about the area sent' : hasDrawing ? 'Drawing sent' : 'Note sent', 'send');
                 }
             }
         });
@@ -2241,6 +2432,8 @@
 
             if (event.key === 'Escape') {
                 closeLightbox();
+            } else if (!isTyping && (event.ctrlKey || event.metaKey) && event.key === 'z') {
+                undoStroke();
             } else if (!isTyping && event.key === 'ArrowLeft') {
                 stepLightbox(-1);
             } else if (!isTyping && event.key === 'ArrowRight') {

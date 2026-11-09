@@ -10,7 +10,7 @@ The board shows three things:
 
 There is no text to read on the board. Claude talks in the terminal, the board is for pictures.
 
-You can also talk back from the board: leave a note on an image from the viewer, or mark an area of it and ask about that area. Claude gets it within a couple of seconds: in the middle of its work, or as your next prompt when it is waiting for you. The viewer also saves an image to your downloads, and clicking the shield beside a session's title protects it from the cleanup (the shield turns green).
+You can also talk back from the board: leave a note on an image from the viewer, mark an area of it and ask about that area, or draw on it with a pen to point at things. Claude gets it within a couple of seconds: in the middle of its work, or as your next prompt when it is waiting for you. The viewer also saves an image to your downloads, and clicking the shield beside a session's title protects it from the cleanup (the shield turns green).
 
 The board tracks two things for each report, and Claude learns both each time it shows something:
 
