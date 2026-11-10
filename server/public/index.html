@@ -76,6 +76,7 @@
                 </button>
             </div>
             <button type="button" id="lightbox-pick" class="hidden w-full items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-extrabold transition"></button>
+            <button type="button" id="lightbox-review" class="hidden w-full items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-extrabold transition"></button>
             <div id="lightbox-note" class="hidden rounded-xl bg-white/5 p-3 ring-1 ring-white/10">
                 <div class="mb-1 flex items-center gap-1.5 text-[11px] font-extrabold uppercase tracking-wider text-clay-400">
                     <i data-lucide="sparkles" class="h-3.5 w-3.5"></i> Claude's note
@@ -1307,6 +1308,7 @@
 
             draw();
             renderQuestionView();
+            updateReview();
             window.lucide?.createIcons();
 
             const field = focus && document.getElementById(focus.id);
@@ -1616,8 +1618,35 @@
             document.getElementById('draw-tools').classList.toggle('hidden', !isOpen(state.current));
             document.getElementById('lightbox').classList.replace('hidden', 'flex');
             updatePick();
+            updateReview();
             renderStrip();
             window.lucide?.createIcons();
+        }
+
+        /**
+         * Offers to mark the report on screen as reviewed, or to move it back in review.
+         */
+        function updateReview() {
+            const button = document.getElementById('lightbox-review');
+            const event = state.lightbox.items[state.lightbox.index]?.event;
+            const canReview = isLightboxOpen() && event && event.kind !== 'seen' && !isPending(event);
+
+            button.classList.toggle('hidden', !canReview);
+            button.classList.toggle('flex', Boolean(canReview));
+
+            if (!canReview) {
+                return;
+            }
+
+            const isReviewed = event.isReviewed === true;
+            button.dataset.markReviewed = event.id;
+            button.classList.toggle('bg-emerald-500', !isReviewed);
+            button.classList.toggle('hover:bg-emerald-600', !isReviewed);
+            button.classList.toggle('bg-white/10', isReviewed);
+            button.classList.toggle('hover:bg-white/20', isReviewed);
+            button.innerHTML = isReviewed
+                ? `${icon('undo-2', 'h-4 w-4')} Move back in review`
+                : `${icon('check', 'h-4 w-4')} Mark as reviewed`;
         }
 
         /**
